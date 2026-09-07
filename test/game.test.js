@@ -5,10 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import http from 'node:http';
 import { createServer } from '../server.js';
-import { demoAI, createAI, Budget } from '../lib/ai.js';
+import { demoAI, createAI, Budget, naturalizeReply } from '../lib/ai.js';
 import { rubric, scenarios, backgroundFor } from '../lib/scenarios.js';
 import { buildEvalGame, validateCases } from '../lib/eval.js';
 import { newGame, startGame, readMessages, sendTurn, normalizeEvaluation } from '../lib/game.js';
+import { assessRealismRun, summarizeRealism } from '../lib/realism.js';
 
 async function localServer(t, ai = demoAI) {
   const server = createServer({ ai });
@@ -217,4 +218,32 @@ test('evaluation baseline contains 30 balanced, source-linked cases', () => {
     assert.equal(game.messages.filter(message => message.role === 'user' && !message.background).length, item.user.length);
   }
   assert.match(validateCases({ ...document, sourceIds: [...document.sourceIds, 'X99'] }, research).errors.join('\n'), /조사 문서에 없는 출처/);
+});
+
+test('realism checks catch role reversal, fact reversal and repeated endings', () => {
+  assert.equal(naturalizeReply('당신은 오늘 어땠어요? 내가 먼저 연락드리겠습니다.'), '오늘 어땠어요? 제가 먼저 연락드릴게요.');
+  const result = assessRealismRun({
+    scenarioId: 'cancelled', partnerName: '서윤', profile: { initiative: 'calm', humor: 'plain' },
+    partnerTurns: [
+      { turn: 1, messages: ['서윤 씨, 아프다니 걱정되네요. 푹 쉬세요.'] },
+      { turn: 2, messages: ['잘 회복하세요.'] },
+    ],
+  });
+  assert.equal(result.issues.filter(issue => issue.type === 'role').length, 1);
+  assert.ok(result.issues.filter(issue => issue.type === 'fact').length >= 2);
+
+  const awkward = assessRealismRun({
+    scenarioId: 'after-date', partnerName: '도윤', profile: { initiative: 'active', humor: 'light' },
+    partnerTurns: Array.from({ length: 5 }, (_, index) => ({ turn: index + 1, messages: ['당신도 기대되죠 ㅎㅎ'] })),
+  });
+  assert.ok(awkward.issues.filter(issue => issue.type === 'style').length >= 2);
+
+  const runs = Array.from({ length: 10 }, (_, index) => ({
+    issues: [], endings: [`서로 다른 마무리 ${index}`], turnCount: 5,
+    profile: { initiative: index % 2 ? 'active' : 'calm', humor: index % 2 ? 'light' : 'plain' },
+    questionTurns: index % 2 ? 3 : 1, playfulTurns: index % 2 ? 2 : 0,
+  }));
+  assert.equal(summarizeRealism(runs).pass, true);
+  runs.forEach(run => { run.endings = ['같은 마무리']; });
+  assert.equal(summarizeRealism(runs).pass, false);
 });
