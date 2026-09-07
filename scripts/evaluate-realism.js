@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createAI } from '../lib/ai.js';
+import { createAI, naturalizeReply } from '../lib/ai.js';
 import { newGame, readMessages, sendTurn, startGame } from '../lib/game.js';
 import { assessRealismRun, summarizeRealism } from '../lib/realism.js';
 
@@ -13,8 +13,8 @@ const replies = {
   cancelled: ['괜찮아요. 몸이 먼저죠.', '저도 아쉽지만 무리하지 않았으면 해요.', '오늘은 푹 쉬어요.', '회복하면 그때 편하게 연락 주세요.', '카페는 다음에 가면 되니까 부담 갖지 마요.'],
 };
 const profiles = [
-  { gender: 'female', initiative: 'calm', humor: 'plain' },
-  { gender: 'male', initiative: 'active', humor: 'light' },
+  { gender: 'female', speech: 'honorific', initiative: 'calm', humor: 'plain' },
+  { gender: 'male', speech: 'casual', initiative: 'active', humor: 'light' },
 ];
 const plans = Object.entries(replies).flatMap(([scenarioId, messages]) => profiles.map(profile => ({ scenarioId, messages, ...profile })));
 const args = process.argv.slice(2);
@@ -44,7 +44,7 @@ for (const plan of plans.slice(0, limit)) {
     if (game.messages.some(message => message.role === 'partner' && message.readAt === null)) readMessages(game, 0);
     const partnerTurns = [];
     for (const text of plan.messages) {
-      await sendTurn(game, { messages: [text], delayMinutes: 0 }, ai);
+      await sendTurn(game, { messages: [naturalizeReply(text, game.profile.speech)], delayMinutes: 0 }, ai);
       partnerTurns.push({ turn: game.turn, messages: game.messages.filter(message => message.role === 'partner' && message.turn === game.turn).map(message => message.text) });
       readMessages(game, 0);
     }

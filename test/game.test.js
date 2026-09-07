@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import http from 'node:http';
 import { createServer } from '../server.js';
 import { demoAI, createAI, Budget, naturalizeReply, normalizePartnerReply } from '../lib/ai.js';
-import { rubric, scenarios, backgroundFor } from '../lib/scenarios.js';
+import { rubric, scenarios, backgroundFor, makeProfile } from '../lib/scenarios.js';
 import { buildEvalGame, validateCases } from '../lib/eval.js';
 import { newGame, startGame, readMessages, sendTurn, normalizeEvaluation } from '../lib/game.js';
 import { assessRealismRun, summarizeRealism } from '../lib/realism.js';
@@ -57,7 +57,7 @@ test('finished games accept one feedback entry without storing the transcript', 
 
 test('five replies, separate read/reply delays, hint caching, and replay through HTTP', async t => {
   const request = await localServer(t);
-  const created = await request('/api/games', { scenarioId: 'second-date', gender: 'male', initiative: 'calm' });
+  const created = await request('/api/games', { scenarioId: 'second-date', gender: 'male', speech: 'honorific', initiative: 'calm' });
   assert.equal(created.status, 201);
   let game = created.data;
   assert.equal(game.messages.length, 8);
@@ -156,6 +156,23 @@ test('first-contact scenarios allow initiating; cancellation starts before the a
     const playful = backgroundFor(scenario, { initiative: 'calm', humor: 'light' });
     assert.notDeepEqual(plain.map(m => m.text), playful.map(m => m.text), scenario.id);
   }
+});
+
+test('casual mode keeps background, opener and demo replies in banmal', async () => {
+  const profile = makeProfile({ gender: 'female', speech: 'casual', initiative: 'active', humor: 'light' });
+  assert.equal(profile.speechStyle, '부드러운 반말');
+  assert.equal(makeProfile({ gender: 'male', speech: 'honorific' }).speechStyle, '담백한 해요체');
+  const game = newGame({ scenarioId: 'second-date', gender: 'female', speech: 'casual', initiative: 'active', humor: 'light' }, 'demo');
+  assert.ok(game.messages.every(message => !/(?:요|세요|습니다)[.!?…]?$/.test(message.text)));
+  startGame(game);
+  assert.equal(game.messages.at(-1).text, '이번 주는 날씨 좋다던데, 주말에 뭐 해?');
+  readMessages(game, 0);
+  await sendTurn(game, { messages: ['나는 일요일 오후가 좋아'], delayMinutes: 0 }, demoAI);
+  const replies = game.messages.filter(message => message.role === 'partner' && message.turn === 1).map(message => message.text);
+  assert.ok(replies.length >= 1);
+  assert.ok(replies.every(text => !/(?:요|세요|습니다)[.!?…]?$/.test(text)));
+  assert.equal(naturalizeReply('저도 좋아요. 일요일에 알려드릴게요.', 'casual'), '나도 좋아. 일요일에 알려줄게.');
+  assert.equal(naturalizeReply('어제 문제가 생겨서 제가 확인했어요.', 'casual'), '어제 문제가 생겨서 내가 확인했어.');
 });
 
 test('concurrent sends are rejected while an AI reply is pending', async t => {
@@ -262,6 +279,7 @@ test('live adapter sends structured requests and rejects malformed responses wit
   assert.deepEqual(schema.properties.strengths.items.properties.messageId.enum, ownIds);
   assert.equal(schema.properties.strengths.maxItems, 2);
   const evaluationData = JSON.parse(evaluationRequest.messages[1].content);
+  assert.equal(evaluationData.conversationStyle, game.profile.speechStyle);
   assert.ok(evaluationData.backgroundContext.every(message => message.background));
   assert.ok(evaluationData.practiceTranscript.every(message => !message.background));
 });

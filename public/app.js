@@ -1,7 +1,7 @@
 const main = document.querySelector('#main');
 const notice = document.querySelector('#notice');
 let config, game, pending = false, draft = [], inputText = '', delayMinutes = 0, hintOpen = false, topicOpen = false;
-let settings = { gender: 'random', initiative: 'random', humor: 'random', scenarioId: 'random' };
+let settings = { gender: 'random', speech: 'random', initiative: 'random', humor: 'random', scenarioId: 'random' };
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const button = (action, text, className = '', attrs = '') => `<button type="button" data-action="${action}" class="${className}" ${attrs}>${text}</button>`;
 const clock = minutes => {
@@ -53,6 +53,7 @@ function renderPreview() {
       <ol class="steps"><li><span>01</span><div><strong>먼저, 어떤 사이인지</strong><p>이전 대화에서 말투와 관심사 살펴보기</p></div></li><li><span>02</span><div><strong>내 말로 다섯 번</strong><p>막히면 힌트, 여유가 필요하면 천천히</p></div></li><li><span>03</span><div><strong>한 문장부터 다시</strong><p>대화를 돌아보고 다른 답장도 시도하기</p></div></li></ol>
       <details class="settings"><summary>나에게 맞게 설정<span>선택 사항</span></summary><div class="settings-grid">
         ${select('gender', '대화 상대', [['random', '랜덤'], ['female', '여성'], ['male', '남성']])}
+        ${select('speech', '말투', [['random', '랜덤'], ['honorific', '존댓말'], ['casual', '반말']])}
         ${select('initiative', '대화 적극성', [['random', '랜덤'], ['calm', '차분하게'], ['active', '적극적으로']])}
         ${select('humor', '농담 선호', [['random', '랜덤'], ['plain', '담백하게'], ['light', '가볍게 장난치기']])}
         ${select('scenarioId', '연습할 상황', [['random', '랜덤 상황'], ...config.scenarios.map(s => [s.id, s.title])])}
