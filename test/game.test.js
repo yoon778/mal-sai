@@ -193,6 +193,18 @@ test('live adapter sends structured requests and rejects malformed responses wit
   assert.equal(usage.gameId, game.id);
   assert.equal(usage.estimatedUsd, 0.00041);
   assert.equal(createAI({ key: 'test-only-key', enabled: false }).mode, 'demo');
+
+  let evaluationRequest;
+  const evaluationAI = createAI({ key: 'test-only-key', enabled: true, directory: mkdtempSync(join(tmpdir(), 'sai-evaluation-schema-')), fetcher: async (_url, request) => {
+    evaluationRequest = JSON.parse(request.body);
+    return { ok: true, json: async () => ({ choices: [{ finish_reason: 'stop', message: { content: '{}' } }] }) };
+  } });
+  await evaluationAI.evaluate(game);
+  const ownIds = game.messages.filter(message => message.role === 'user' && !message.background).map(message => message.id);
+  const schema = evaluationRequest.response_format.json_schema.schema;
+  assert.deepEqual(schema.properties.criteria.items.properties.evidenceIds.items.enum, ownIds);
+  assert.deepEqual(schema.properties.strengths.items.properties.messageId.enum, ownIds);
+  assert.equal(schema.properties.strengths.maxItems, 2);
 });
 
 test('evaluation baseline contains 30 balanced, source-linked cases', () => {

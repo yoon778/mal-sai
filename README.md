@@ -66,7 +66,7 @@ npm run eval:ai -- --limit 3
 - 핵심 동작 테스트 9개
 - AI 평가 기준 사례 30개
 - 로컬 API 비용 상한과 사용량 기록 적용
-- 실제 AI 대화·평가 연결 준비 중
+- 실제 AI 대화·힌트·평가 3상황 완주 검증
 
 세부 내용: [구현 상태](./docs/implementation-status.md) · [해커톤 로드맵](./docs/hackathon-roadmap.md)
 
