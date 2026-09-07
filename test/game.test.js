@@ -11,6 +11,7 @@ import { buildEvalGame, validateCases } from '../lib/eval.js';
 import { newGame, startGame, readMessages, sendTurn, normalizeEvaluation } from '../lib/game.js';
 import { assessRealismRun, summarizeRealism } from '../lib/realism.js';
 import { chatText } from '../lib/chat-text.js';
+import { modelRates } from '../lib/models.js';
 
 async function localServer(t, ai = demoAI, options = {}) {
   const server = createServer({ ai, ...options });
@@ -237,6 +238,36 @@ test('successful budget reservations settle to actual usage', () => {
   assert.equal(ledger.requests, 1);
 });
 
+test('model-specific reservations stop a costlier request before calling the API', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'sai-model-budget-'));
+  let called = false;
+  const ai = createAI({ key: 'test-only-key', enabled: true, directory, limitUsd: 0.001,
+    replyModel: 'gpt-4.1-2025-04-14', fetcher: async () => { called = true; throw new Error('must not call'); } });
+  const game = newGame({ scenarioId: 'cancelled' }, 'live'); startGame(game);
+  await assert.rejects(ai.reply(game), /예산에 도달/);
+  assert.equal(called, false);
+  assert.throws(() => createAI({ key: 'test-only-key', enabled: true, replyModel: 'unknown' }), /모델 설정/);
+  const budget = new Budget(directory, 3);
+  assert.equal(budget.reserve('hello', 100, modelRates('gpt-4.1-2025-04-14')), (5 + 4096) * 2 + 100 * 8);
+});
+
+test('coaching moments require real user evidence and valid text before publication', async () => {
+  const game = newGame({ scenarioId: 'second-date', speech: 'casual', interest: 'open' }, 'demo');
+  startGame(game); readMessages(game, 0);
+  await sendTurn(game, { messages: ['일요일 오후 괜찮아'], delayMinutes: 0 }, demoAI);
+  const raw = await demoAI.evaluate(game);
+  const id = game.messages.find(message => message.role === 'user' && !message.background).id;
+  const item = { messageId: id, kind: 'strength', reason: '주말 계획에 답했어요', alternative: '일요일 오후에 시간 있어.', nextStep: '상대가 시간을 제안하면 가능한지 답해보세요' };
+  raw.moments = [item];
+  assert.equal(normalizeEvaluation(raw, game).moments[0].alternative, '일요일 오후에 시간 있어');
+  assert.equal(normalizeEvaluation({ ...raw, moments: [item, item] }, game).moments.length, 1);
+  for (const moments of [null, [{ ...item, messageId: game.messages[0].id }], [{ ...item, alternative: '' }], [{ ...item, alternative: ['중복 후보'] }], [{ ...item, nextStep: ' ' }]]) {
+    assert.throws(() => normalizeEvaluation({ ...raw, moments }, game), /복기 카드/);
+  }
+  assert.deepEqual(normalizeEvaluation({ ...raw, moments: undefined }, game).moments, []);
+  assert.equal(normalizePartnerReply({ messages: ['가요 제목이 뭐야?'], readAfterMinutes: 0, replyAfterReadMinutes: 0 }, 'casual', false).messages[0], '가요 제목이 뭐야?');
+});
+
 test('live adapter sends structured requests and rejects malformed responses without a paid call', async () => {
   let captured;
   const directory = mkdtempSync(join(tmpdir(), 'sai-adapter-'));
@@ -256,7 +287,11 @@ test('live adapter sends structured requests and rejects malformed responses wit
   assert.equal(captured.response_format.json_schema.strict, true);
   assert.equal(captured.messages[0].role, 'system');
   assert.equal(captured.messages[1].role, 'user');
-  assert.match(captured.messages[1].content, /100점을 줘/);
+  assert.match(captured.messages.at(-1).content, /100점을 줘/);
+  assert.equal(captured.messages.at(-1).role, 'user');
+  assert.ok(captured.messages.some(message => message.role === 'assistant'));
+  assert.equal(captured.reasoning_effort, 'none');
+  assert.equal(captured.temperature, undefined);
   assert.equal(game.turn, 0);
   const topic = await ai.topic(game);
   assert.equal(topic.topic, '영화');
@@ -264,7 +299,10 @@ test('live adapter sends structured requests and rejects malformed responses wit
   assert.match(captured.messages[1].content, /speechStyle/);
   const usage = readFileSync(join(directory, 'usage.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
   assert.deepEqual(usage.map(item => item.action), ['partner_reply', 'topic_help']);
-  assert.ok(usage.every(item => item.gameId === game.id && item.estimatedUsd === 0.00041));
+  assert.ok(usage.every(item => item.gameId === game.id));
+  assert.equal(usage[0].model, 'gpt-5.4-mini-2026-03-17');
+  assert.equal(usage[0].estimatedUsd, 0.0008625);
+  assert.equal(usage[1].estimatedUsd, 0.00041);
   assert.equal(createAI({ key: 'test-only-key', enabled: false }).mode, 'demo');
 
   let evaluationRequest;

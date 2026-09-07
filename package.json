@@ -3,16 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node --env-file-if-exists=.env server.js",
-    "check": "node --check server.js && node --check lib/game.js && node --check lib/ai.js && node --check lib/eval.js && node --check lib/realism.js && node --check public/app.js && node --check scripts/evaluate.js && node --check scripts/smoke-live.js && node --check scripts/evaluate-realism.js && node --check scripts/evaluate-reliability.js && node --check scripts/summarize-feedback.js",
+    "check": "node --check server.js && node --check lib/game.js && node --check lib/ai.js && node --check lib/eval.js && node --check lib/realism.js && node --check public/app.js && node --check scripts/evaluate.js && node --check scripts/smoke-live.js && node --check scripts/evaluate-realism.js && node --check scripts/evaluate-reliability.js && node --check scripts/summarize-feedback.js && node --check lib/models.js && node --check lib/chat-prompt.js && node --check public/designs.js && node --check scripts/compare-chat.js",
     "test": "node --test",
     "eval:validate": "node scripts/evaluate.js",
     "eval:ai": "node --env-file-if-exists=.env scripts/evaluate.js --live",
     "smoke:ai": "node --env-file-if-exists=.env scripts/smoke-live.js",
     "realism:ai": "node --env-file-if-exists=.env scripts/evaluate-realism.js",
     "reliability:ai": "node --env-file-if-exists=.env scripts/evaluate-reliability.js",
-    "feedback:summary": "node scripts/summarize-feedback.js"
+    "feedback:summary": "node scripts/summarize-feedback.js",
+    "compare:chat": "node --env-file-if-exists=.env scripts/compare-chat.js"
   }
 }

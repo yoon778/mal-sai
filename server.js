@@ -8,6 +8,9 @@ import { newGame, publicGame, startGame, readMessages, sendTurn, waitForReply, g
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const assets = new Map([['/', ['index.html', 'text/html']], ['/app.js', ['app.js', 'text/javascript']], ['/style.css', ['style.css', 'text/css']]]);
+assets.set('/designs', ['designs.html', 'text/html']);
+assets.set('/designs.js', ['designs.js', 'text/javascript']);
+assets.set('/designs.css', ['designs.css', 'text/css']);
 
 export function createServer({ ai = createAI({ directory: join(root, '.data') }), dataDirectory = join(root, '.data') } = {}) {
   const games = new Map();
