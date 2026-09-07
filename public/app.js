@@ -48,9 +48,10 @@ function modeNote() {
 
 function renderPreview() {
   main.innerHTML = `<div class="preview-layout">
-    <section class="intro"><p class="eyebrow">작은 연습, 조금 편해지는 대화</p><h1>무슨 말을 할까,<br>막막한 그 순간에<span class="title-dot">.</span></h1>
-      <p class="intro-copy">보내기 어려웠던 한마디를 여기서 연습해요.<br>상대의 이야기를 읽고, 나만의 답장을 찾아보세요.</p>
-      <ol class="steps"><li><span>01</span><div><strong>먼저, 어떤 사이인지</strong><p>이전 대화에서 말투와 관심사 살펴보기</p></div></li><li><span>02</span><div><strong>내 말로 다섯 번</strong><p>막히면 힌트, 여유가 필요하면 천천히</p></div></li><li><span>03</span><div><strong>한 문장부터 다시</strong><p>대화를 돌아보고 다른 답장도 시도하기</p></div></li></ol>
+    <section class="intro"><p class="eyebrow">오늘의 대화 퀘스트</p><h1>다음 말이 궁금한<br>사이가 되어볼까?</h1>
+      <p class="intro-copy">상황 하나, 답장 다섯 번<br>부담 없이 연습하고 나만의 대화 감각을 찾아요</p>
+      <section class="quest-ticket" aria-label="이번 미션"><span>이번 미션</span><strong>${escape(game.scenario.goal)}</strong><small>5번의 답장 · 나다운 표현 찾기</small></section>
+      <div class="speech-motif" aria-hidden="true"><span>안녕</span><span>ㅋㅋ</span><i>✳</i></div>
       <details class="settings"><summary>나에게 맞게 설정<span>선택 사항</span></summary><div class="settings-grid">
         ${select('gender', '대화 상대', [['random', '랜덤'], ['female', '여성'], ['male', '남성']])}
         ${select('speech', '말투', [['random', '랜덤'], ['honorific', '존댓말'], ['casual', '반말']])}
@@ -67,7 +68,7 @@ function renderPreview() {
       <div class="chat-heading"><span class="avatar">${escape(game.profile.name.slice(-1))}</span><div><strong>${escape(game.profile.name)}</strong><span>${game.profile.age}세 · ${escape(game.profile.gender === 'female' ? '여성' : '남성')} · ${escape(game.profile.speechStyle)}</span></div><span class="history-tag">${escape(game.scenario.historyLabel)}</span></div>
       <p class="preview-tip">말투와 관심사를 살펴보고 이어서 대화해 보세요</p>
       ${storyPanel()}<div class="preview-messages">${game.messages.map(m => bubble(m, { preview: true })).join('')}</div>
-      <div class="preview-bottom">${button('start', '이어서 대화하기 <span aria-hidden="true">↗</span>', 'primary wide')}${modeNote()}</div>
+      <div class="preview-bottom">${button('start', '대화 퀘스트 시작 <span aria-hidden="true">↗</span>', 'primary wide')}${modeNote()}</div>
     </section>
   </div>`;
 }
@@ -96,7 +97,7 @@ function renderChat() {
   const unread = game.waiting || game.messages.some(m => m.role === 'partner' && m.readAt === null);
   const ended = game.turn === 5;
   main.innerHTML = `<div class="play-layout"><aside class="play-sidebar">
-    ${button('home', '← 새 연습', 'text-button')}<p class="eyebrow">${escape(game.scenario.label)}</p><h1>${escape(game.scenario.title)}</h1><p>${escape(game.scenario.context)}</p>
+    ${button('home', '← 새 연습', 'text-button')}<p class="eyebrow">${escape(game.scenario.label)}</p><h1>${escape(game.scenario.title)}</h1><details class="scene-details"><summary>상황 다시 보기</summary><p>${escape(game.scenario.context)}</p></details>
     <div class="goal"><span>이번 연습의 목표</span><strong>${escape(game.scenario.goal)}</strong></div>
     <div class="progress-label"><strong>나의 답장</strong><span>${game.turn} / 5</span></div><div class="progress" role="progressbar" aria-label="답장 진행" aria-valuemin="0" aria-valuemax="5" aria-valuenow="${game.turn}">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= game.turn ? 'filled' : ''}"></i>`).join('')}</div>
     <p class="quiet">말풍선을 나눠 보내도 한 번의 답장이에요.<br>가상 시간은 실제로 기다리지 않아요.</p>
@@ -169,7 +170,7 @@ function eventReview() {
 function renderReview() {
   const result = game.result;
   const unscored = game.mode === 'demo' ? 'AI 연결 전' : '관찰 부족';
-  main.innerHTML = `<div class="review-page"><div class="review-top"><div><p class="eyebrow">오늘의 대화 복기</p><h1>다음 한마디는,<br>조금 더 편하게.</h1><p>${escape(result.summary)}</p></div>${button('home', '새 상황 연습하기 ↗', 'primary')}</div>
+  main.innerHTML = `<div class="review-page"><div class="review-top"><div><p class="eyebrow">대화 한 판 완료</p><h1>한 번 해봤으니,<br>한 번 더 잘해보자</h1><p>${escape(result.summary)}</p></div>${button('home', '새 상황 연습하기 ↗', 'primary')}</div>
     ${modeNote()}<div class="review-grid"><section class="score-panel"><p class="eyebrow">대화 기술</p><div class="score">${result.score ?? '—'}<span>${result.score === null ? unscored : '/ 100'}</span></div><p class="quiet">${game.mode === 'demo' ? '실제 AI를 연결하면 근거가 있는 점수를 볼 수 있어요.' : `관찰 범위 ${result.coverage}% · 짧은 대화에 대한 임시 평가예요.`}</p><div class="rubric-list">${result.criteria.map(c => `<details><summary><span>${escape(c.label)}</span><b>${c.score === null ? unscored : `${c.score} / 4`}</b></summary><p>${escape(c.reason)}</p>${c.evidenceIds.map(id => `<blockquote>${escape(game.messages.find(m => m.id === id)?.text)}</blockquote>`).join('')}</details>`).join('')}</div><p class="quiet">힌트 ${game.totalHints}회 · 감점 없음</p></section>
       <div class="feedback-column"><section class="outcome"><span class="eyebrow">이번 상황의 결과</span><h2>${escape(result.outcome)}</h2><p>상황 결과와 대화 기술은 별개예요. 약속이 잡히지 않아도 좋은 대응일 수 있어요.</p></section>
       ${eventReview()}${expressionNotes()}${result.moments?.length ? coachingCards(result.moments) : `${feedbackItems(result.strengths, '잘 이어간 부분', 'strength')}${feedbackItems(result.improvements, game.mode === 'demo' ? '스스로 돌아보기' : '다르게 해볼 부분', 'improvement')}`}
@@ -178,10 +179,17 @@ function renderReview() {
     <p class="review-footnote">평가 기준은 연구와 사례를 참고해 설계한 초안이에요. 같은 대화도 점수가 달라질 수 있으니 숫자 하나보다 연결된 답장과 행동 제안을 살펴보세요. 사람의 매력이나 실제 상대의 속마음을 판정하지 않아요.</p></div>`;
 }
 
+function questPath() {
+  const current = game.stage === 'preview' ? 0 : game.stage === 'finished' ? 2 : 1;
+  return `<ol class="quest-path" aria-label="연습 진행 단계">${['상황 읽기', '대화해보기', '돌아보기'].map((label, index) => `<li class="${index === current ? 'current' : index < current ? 'done' : ''}" ${index === current ? 'aria-current="step"' : ''}><span>${index < current ? '✓' : `0${index + 1}`}</span>${label}</li>`).join('')}</ol>`;
+}
+
 function render() {
+  main.dataset.stage = game.stage;
   if (game.stage === 'preview') renderPreview();
   else if (game.stage === 'finished') renderReview();
   else renderChat();
+  main.insertAdjacentHTML('afterbegin', questPath());
   main.setAttribute('aria-busy', String(pending));
   if (pending) main.querySelectorAll('button, input, select, textarea, summary').forEach(el => { el.disabled = true; });
 }
