@@ -177,6 +177,18 @@ test('casual mode keeps background, opener and demo replies in banmal', async ()
   assert.equal(naturalizeReply('어제 문제가 생겨서 제가 확인했어요.', 'casual'), '어제 문제가 생겨서 내가 확인했어.');
 });
 
+test('multiline replies remain one bubble through normalization and delivery', async () => {
+  const text = '으엥\n거기 가려고 했는데 ㅠㅠ\n다른 데 찾아봐야겠다';
+  const reply = { messages: [text, '웅'], readAfterMinutes: 0, replyAfterReadMinutes: 1 };
+  assert.deepEqual(normalizePartnerReply(reply, 'casual', false).messages, [text, '웅']);
+  assert.equal(naturalizeReply('좋아요\n\n일요일이에요', 'casual'), '좋아\n\n일요일이야');
+  const game = newGame({ scenarioId: 'second-date', speech: 'casual' }, 'demo');
+  startGame(game);
+  readMessages(game, 0);
+  await sendTurn(game, { messages: ['그 카페 오늘 쉰대'], delayMinutes: 0 }, { reply: async () => reply });
+  assert.deepEqual(game.messages.filter(m => m.role === 'partner' && m.turn === 1).map(m => m.text), [text, '웅']);
+});
+
 test('concurrent sends are rejected while an AI reply is pending', async t => {
   let release;
   let signalStarted;
