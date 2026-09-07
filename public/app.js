@@ -30,12 +30,16 @@ function bubble(message, { preview = false, review = false } = {}) {
   const own = message.role === 'user';
   const unread = !preview && !review && !own && message.readAt === null;
   if (unread) return '';
-  const firstInTurn = !message.background && own && game.messages.find(m => m.role === 'user' && !m.background && m.turn === message.turn)?.id === message.id;
-  return `<div class="message ${own ? 'own' : 'other'}" id="message-${escape(message.id)}">
-    ${!own ? `<span class="small-avatar" aria-hidden="true">${escape(game.profile.name.slice(-1))}</span>` : ''}
-    <div class="message-content">${!own ? `<span class="sender">${escape(game.profile.name)}</span>` : ''}<div class="bubble">${escape(message.text)}</div>
-    <div class="message-meta">${message.background ? '이전 대화' : clock(message.minute)}${own && !message.background ? ` · ${message.readAt === null ? '안 읽음' : `${clock(message.readAt)} 읽음`}` : ''}</div>
-    ${review && firstInTurn ? button('retry', '이 답장부터 다시', 'text-button retry', `data-turn="${message.turn}"`) : ''}</div></div>`;
+  const index = game.messages.findIndex(item => item.id === message.id);
+  const sameTurn = item => item && item.role === message.role && item.turn === message.turn && Boolean(item.background) === Boolean(message.background);
+  const followsSame = sameTurn(game.messages[index - 1]);
+  const leadsSame = sameTurn(game.messages[index + 1]);
+  const classes = ['message', own ? 'own' : 'other', followsSame ? 'continuation' : '', leadsSame ? 'continues' : ''].filter(Boolean).join(' ');
+  return `<div class="${classes}" id="message-${escape(message.id)}">
+    ${!own ? `<span class="small-avatar ${followsSame ? 'ghost' : ''}" aria-hidden="true">${escape(game.profile.name.slice(-1))}</span>` : ''}
+    <div class="message-content">${!own && !followsSame ? `<span class="sender">${escape(game.profile.name)}</span>` : ''}<div class="bubble">${escape(message.text)}</div>
+    ${!leadsSame ? `<div class="message-meta">${message.background ? '이전 대화' : clock(message.minute)}${own && !message.background ? ` · ${message.readAt === null ? '안 읽음' : `${clock(message.readAt)} 읽음`}` : ''}</div>` : ''}
+    ${review && own && !message.background && !leadsSame ? button('retry', '이 답장부터 다시', 'text-button retry', `data-turn="${message.turn}"`) : ''}</div></div>`;
 }
 
 function modeNote() {

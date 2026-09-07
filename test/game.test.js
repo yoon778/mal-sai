@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import http from 'node:http';
 import { createServer } from '../server.js';
-import { demoAI, createAI, Budget, naturalizeReply } from '../lib/ai.js';
+import { demoAI, createAI, Budget, naturalizeReply, normalizePartnerReply } from '../lib/ai.js';
 import { rubric, scenarios, backgroundFor } from '../lib/scenarios.js';
 import { buildEvalGame, validateCases } from '../lib/eval.js';
 import { newGame, startGame, readMessages, sendTurn, normalizeEvaluation } from '../lib/game.js';
@@ -300,8 +300,19 @@ test('realism checks catch role reversal, fact reversal and repeated endings', (
     issues: [], endings: [`서로 다른 마무리 ${index}`], turnCount: 5,
     profile: { initiative: index % 2 ? 'active' : 'calm', humor: index % 2 ? 'light' : 'plain' },
     questionTurns: index % 2 ? 3 : 1, playfulTurns: index % 2 ? 2 : 0,
+    bubbleCount: 8, multiBubbleTurns: 3, tripleBubbleTurns: 0, microBubbleTurns: 1,
   }));
   assert.equal(summarizeRealism(runs).pass, true);
   runs.forEach(run => { run.endings = ['같은 마무리']; });
   assert.equal(summarizeRealism(runs).pass, false);
+});
+
+test('partner reply keeps natural chunks and rejects malformed splitting', () => {
+  const valid = { messages: ['아 맞다', '그 카페 일요일에 갈까요?'], readAfterMinutes: 1, replyAfterReadMinutes: 5 };
+  assert.deepEqual(normalizePartnerReply(valid).messages, valid.messages);
+  const base = { readAfterMinutes: 1, replyAfterReadMinutes: 1 };
+  assert.throws(() => normalizePartnerReply({ ...base, messages: ['a', 'b', 'c', 'd'] }), /상대 응답/);
+  assert.throws(() => normalizePartnerReply({ ...base, messages: ['괜찮아요', '괜찮아요'] }), /상대 응답/);
+  assert.throws(() => normalizePartnerReply({ ...base, messages: ['x'.repeat(181)] }), /상대 응답/);
+  assert.throws(() => normalizePartnerReply({ ...base, messages: [' ', '다시 말할게요'] }), /상대 응답/);
 });

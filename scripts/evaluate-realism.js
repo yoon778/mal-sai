@@ -69,6 +69,6 @@ summary.usage = {
 mkdirSync(directory, { recursive: true });
 const outputPath = join(directory, `realism-${new Date().toISOString().replaceAll(':', '-')}.json`);
 writeFileSync(outputPath, JSON.stringify({ createdAt: new Date().toISOString(), summary, results }, null, 2));
-console.log(`결과 ${summary.pass ? '통과' : '확인 필요'} · 역할 혼동 ${summary.roleConfusions} · 사실 모순 ${summary.factContradictions} · 말투 문제 ${summary.styleIssues} · 동일 마무리 ${(summary.repetitionRate * 100).toFixed(1)}% · $${summary.usage.estimatedUsd.toFixed(6)}`);
+console.log(`결과 ${summary.pass ? '통과' : '확인 필요'} · 역할 혼동 ${summary.roleConfusions} · 사실 모순 ${summary.factContradictions} · 말투 문제 ${summary.styleIssues} · 분절 문제 ${summary.segmentationIssues} · 평균 말풍선 ${summary.averageBubblesPerTurn.toFixed(2)}개 · 복수 말풍선 ${(summary.multiBubbleRate * 100).toFixed(1)}% · 동일 마무리 ${(summary.repetitionRate * 100).toFixed(1)}% · $${summary.usage.estimatedUsd.toFixed(6)}`);
 console.log(`결과 저장 · ${outputPath}`);
 if (!summary.pass) process.exitCode = 2;
