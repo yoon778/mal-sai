@@ -1,6 +1,6 @@
 const main = document.querySelector('#main');
 const notice = document.querySelector('#notice');
-let config, game, pending = false, draft = [], inputText = '', delayMinutes = 0, hintOpen = false;
+let config, game, pending = false, draft = [], inputText = '', delayMinutes = 0, hintOpen = false, topicOpen = false;
 let settings = { gender: 'random', initiative: 'random', humor: 'random', scenarioId: 'random' };
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const button = (action, text, className = '', attrs = '') => `<button type="button" data-action="${action}" class="${className}" ${attrs}>${text}</button>`;
@@ -57,7 +57,7 @@ function renderPreview() {
     </section>
     <section class="scenario-preview" aria-label="대화 시작 준비"><div class="scenario-heading"><span class="eyebrow">오늘의 상황</span>${button('shuffle', '다른 상황 ↻', 'text-button')}</div>
       <div class="scenario-description"><span class="tag">${escape(game.scenario.label)}</span><h2>${escape(game.scenario.title)}</h2><p>${escape(game.scenario.context)}</p></div>
-      <div class="chat-heading"><span class="avatar">${escape(game.profile.name.slice(-1))}</span><div><strong>${escape(game.profile.name)}</strong><span>${game.profile.age}세 · 가상의 대화 상대</span></div><span class="history-tag">이전 대화</span></div>
+      <div class="chat-heading"><span class="avatar">${escape(game.profile.name.slice(-1))}</span><div><strong>${escape(game.profile.name)}</strong><span>${game.profile.age}세 · ${escape(game.profile.gender === 'female' ? '여성' : '남성')} · ${escape(game.profile.speechStyle)}</span></div><span class="history-tag">이전 대화</span></div>
       <p class="preview-tip">말투와 관심사를 살펴보고 이어서 대화해 보세요</p>
       <div class="preview-messages">${game.messages.map(m => bubble(m, { preview: true })).join('')}</div>
       <div class="preview-bottom">${button('start', '이어서 대화하기 <span aria-hidden="true">↗</span>', 'primary wide')}${modeNote()}</div>
@@ -89,11 +89,12 @@ function renderChat() {
     <p class="quiet">말풍선을 나눠 보내도 한 번의 답장이에요.<br>가상 시간은 실제로 기다리지 않아요.</p>
     ${game.comparison ? '<div class="retry-note">다시 연습하는 중<br><small>바꾼 답장과 이전 반응을 비교해보세요</small></div>' : ''}
     ${modeNote()}</aside>
-    <section class="chat-window" aria-label="메신저 대화"><div class="chat-heading"><span class="avatar">${escape(game.profile.name.slice(-1))}</span><div><strong>${escape(game.profile.name)}</strong><span>가상의 대화 상대</span></div><span class="virtual-clock">가상 시간 <b>${clock(game.minute)}</b></span></div>
+    <section class="chat-window" aria-label="메신저 대화"><div class="chat-heading"><span class="avatar">${escape(game.profile.name.slice(-1))}</span><div><strong>${escape(game.profile.name)}</strong><span>${escape(game.profile.gender === 'female' ? '여성' : '남성')} · ${escape(game.profile.speechStyle)}</span></div><span class="virtual-clock">가상 시간 <b>${clock(game.minute)}</b></span></div>
       <div class="chat-messages" id="chat-scroll" role="log" aria-label="대화 기록" aria-live="polite"><div class="history-divider">이전 대화</div>${game.messages.filter(m => m.background).map(m => bubble(m)).join('')}<div class="history-divider">오늘 · 연습 시작</div>${game.messages.filter(m => !m.background).map(m => bubble(m)).join('')}${!game.messages.some(m => !m.background) ? '<p class="end-note">이전 대화를 떠올리며, 먼저 한마디 건네보세요</p>' : ''}${unreadPanel()}${ended && !unread ? '<p class="end-note">다섯 번의 답장을 마쳤어요. 이제 함께 돌아볼까요?</p>' : ''}</div>
       <div class="composer-area">${ended ? button('finish', '대화 복기하기 ↗', 'primary wide', unread ? 'disabled' : '') : `
-        <div class="composer-toolbar">${button('hint', '막막해요 · 힌트', `text-button ${hintOpen ? 'selected' : ''}`, unread ? 'disabled' : '')}<label class="delay-label">답장 시점<select id="reply-delay" ${unread ? 'disabled' : ''}>${[[0, '바로'], [5, '5분 뒤'], [30, '30분 뒤'], [120, '2시간 뒤']].map(([v, t]) => `<option value="${v}" ${delayMinutes === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label></div>
+        <div class="composer-toolbar"><div class="coach-actions">${button('hint', '막막해요 · 힌트', `text-button ${hintOpen ? 'selected' : ''}`, unread ? 'disabled' : '')}${button('topic', '말이 끊겼어요 · 주제 찾기', `text-button ${topicOpen ? 'selected' : ''}`, unread ? 'disabled' : '')}</div><label class="delay-label">답장 시점<select id="reply-delay" ${unread ? 'disabled' : ''}>${[[0, '바로'], [5, '5분 뒤'], [30, '30분 뒤'], [120, '2시간 뒤']].map(([v, t]) => `<option value="${v}" ${delayMinutes === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label></div>
         ${hintOpen && game.hint ? `<div class="hint"><span>이런 방향은 어때요?</span><p>${escape(game.hint)}</p><small>힌트는 감점 없이 볼 수 있어요 · ${game.totalHints}회 사용</small></div>` : ''}
+        ${topicOpen && game.topicHelp ? `<div class="topic-help"><span>대화 연결 연습</span><dl><div><dt>꺼낼 주제</dt><dd>${escape(game.topicHelp.topic)}</dd></div><div><dt>이렇게 연결</dt><dd>${escape(game.topicHelp.bridge)}</dd></div><div><dt>답을 받으면</dt><dd>${escape(game.topicHelp.next)}</dd></div><div><dt>피할 방식</dt><dd>${escape(game.topicHelp.avoid)}</dd></div></dl><small>그대로 복사하기보다 내 말투로 바꿔보세요 · ${game.totalTopicHelps}회 사용</small></div>` : ''}
         <div class="draft-bubbles">${draft.map((text, i) => `<div class="draft-bubble"><span>${escape(text)}</span>${button('remove-draft', '×', 'text-button', `data-index="${i}" aria-label="작성 중인 말풍선 ${i + 1} 삭제"`)}</div>`).join('')}</div>
         <form id="composer"><label class="sr-only" for="message-input">답장 작성</label><textarea id="message-input" maxlength="400" rows="2" placeholder="${unread ? '새 메시지를 먼저 읽어주세요' : '나답게, 편하게 답해보세요'}" ${unread ? 'disabled' : ''}>${escape(inputText)}</textarea><div class="composer-bottom"><div class="emoji-row" aria-label="이모티콘">${['🙂', '😂', '🥲', '👍', '☕'].map(emoji => button('emoji', emoji, 'emoji', `data-emoji="${emoji}" aria-label="${emoji} 넣기" ${unread ? 'disabled' : ''}`)).join('')}</div><div>${button('split', '+ 나눠쓰기', 'text-button', unread || draft.length >= 2 ? 'disabled' : '')}<button type="submit" class="primary send" ${unread ? 'disabled' : ''}>보내기 <span aria-hidden="true">↑</span></button></div></div></form>
         <div class="composer-help"><span>Enter 전송 · Shift+Enter 줄바꿈</span><span>말풍선당 400자</span></div>`}
@@ -194,13 +195,14 @@ main.addEventListener('click', event => {
   }
   if (name === 'remove-draft') { draft.splice(Number(target.dataset.index), 1); render(); return; }
   if (name === 'shuffle' || name === 'home') return run(async () => {
-    game = await api('/api/games', settings); draft = []; inputText = ''; delayMinutes = 0; hintOpen = false;
+    game = await api('/api/games', settings); draft = []; inputText = ''; delayMinutes = 0; hintOpen = false; topicOpen = false;
   }, '다음 상황 준비 중…');
   if (name === 'start') return run(() => action('start'), '대화 시작 중…');
   if (name === 'read') return run(() => action('read', { delayMinutes: Number(target.dataset.delay) }), '메시지 읽는 중…');
-  if (name === 'hint') return run(async () => { await action('hint'); hintOpen = !hintOpen; }, '대화를 이어갈 실마리 찾는 중…');
+  if (name === 'hint') return run(async () => { await action('hint'); hintOpen = !hintOpen; topicOpen = false; }, '대화를 이어갈 실마리 찾는 중…');
+  if (name === 'topic') return run(async () => { await action('topic'); topicOpen = !topicOpen; hintOpen = false; }, '이어갈 주제를 찾는 중…');
   if (name === 'finish') return run(() => action('finish'), '다섯 번의 답장을 돌아보는 중…');
-  if (name === 'retry') return run(async () => { await action('retry', { turn: Number(target.dataset.turn) }); draft = []; inputText = ''; hintOpen = false; delayMinutes = 0; }, '그 순간으로 돌아가는 중…');
+  if (name === 'retry') return run(async () => { await action('retry', { turn: Number(target.dataset.turn) }); draft = []; inputText = ''; hintOpen = false; topicOpen = false; delayMinutes = 0; }, '그 순간으로 돌아가는 중…');
 });
 main.addEventListener('submit', event => {
   if (event.target.id === 'feedback-form') {
@@ -218,7 +220,7 @@ main.addEventListener('submit', event => {
   event.preventDefault();
   const messages = [...draft, ...(inputText.trim() ? [inputText.trim()] : [])];
   if (!messages.length) return;
-  run(async () => { await action('send', { messages, delayMinutes }); draft = []; inputText = ''; hintOpen = false; delayMinutes = 0; }, game.mode === 'demo' ? '체험 상대의 답장 준비 중…' : `${game.profile.name}의 답장을 기다리는 중…`);
+  run(async () => { await action('send', { messages, delayMinutes }); draft = []; inputText = ''; hintOpen = false; topicOpen = false; delayMinutes = 0; }, game.mode === 'demo' ? '체험 상대의 답장 준비 중…' : `${game.profile.name}의 답장을 기다리는 중…`);
 });
 main.addEventListener('keydown', event => {
   if (event.target.id === 'message-input' && event.key === 'Enter' && !event.shiftKey && !event.isComposing && !pending) { event.preventDefault(); event.target.form.requestSubmit(); }

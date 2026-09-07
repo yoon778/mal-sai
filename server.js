@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import { createAI } from './lib/ai.js';
 import { scenarios } from './lib/scenarios.js';
-import { newGame, publicGame, startGame, readMessages, sendTurn, getHint, finishGame, retryTurn, GameError } from './lib/game.js';
+import { newGame, publicGame, startGame, readMessages, sendTurn, getHint, getTopicHelp, finishGame, retryTurn, GameError } from './lib/game.js';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const assets = new Map([['/', ['index.html', 'text/html']], ['/app.js', ['app.js', 'text/javascript']], ['/style.css', ['style.css', 'text/css']]]);
@@ -32,7 +32,7 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
       }
       if (req.method === 'GET' && path === '/api/config') { json({ mode: ai.mode, scenarios: scenarios.map(({ id, title }) => ({ id, title })) }); return; }
       for (const [id, game] of games) if (!game.busy && Date.now() - game.createdAt > 6 * 3600_000) games.delete(id);
-      const match = path.match(/^\/api\/games\/([a-f\d-]{36})(?:\/(start|read|send|hint|finish|retry))?$/);
+      const match = path.match(/^\/api\/games\/([a-f\d-]{36})(?:\/(start|read|send|hint|topic|finish|retry))?$/);
       if (req.method === 'GET' && match && !match[2]) {
         const game = games.get(match[1]);
         if (!game) throw new GameError('대화가 만료되었어요. 새로 시작해 주세요.', 404);
@@ -77,6 +77,7 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
           case 'read': readMessages(game, input.delayMinutes); break;
           case 'send': await sendTurn(game, input, ai); break;
           case 'hint': await getHint(game, ai); break;
+          case 'topic': await getTopicHelp(game, ai); break;
           case 'finish': await finishGame(game, ai); break;
           case 'retry': retryTurn(game, input.turn); break;
         }
