@@ -54,8 +54,11 @@ npm run eval:validate
 실제 AI 평가는 `.env.example`을 `.env`로 복사하고 `OPENAI_API_KEY`, `AI_ENABLED=true`를 설정한 뒤 실행합니다
 
 ```bash
+npm run smoke:ai -- --limit 1
 npm run eval:ai -- --limit 3
 ```
+
+`smoke:ai`는 대표 상황을 실제로 완주하고 대화·힌트·평가의 응답 시간과 토큰·추정 비용을 `.data/smoke-live-*.json`에 기록합니다. 한 판부터 확인한 뒤 최대 세 판까지 실행합니다.
 
 ## 현재 상태
 
