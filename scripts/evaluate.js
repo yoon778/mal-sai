@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createAI } from '../lib/ai.js';
 import { normalizeEvaluation } from '../lib/game.js';
 import { buildEvalGame, checkEvaluation, validateCases } from '../lib/eval.js';
+import { defaultCoachModel } from '../lib/models.js';
 
 const document = JSON.parse(readFileSync(new URL('../eval/cases.json', import.meta.url), 'utf8'));
 const research = readFileSync(new URL('../research/ai-conversation-rubric.md', import.meta.url), 'utf8');
@@ -79,6 +80,6 @@ for (const scenarioId of new Set(selected.map(item => item.scenarioId))) {
   }
 }
 const summary = { passed, total: output.length, passRate: output.length ? passed / output.length : 0, pairs, inversions, inversionRate: pairs ? inversions / pairs : null };
-writeFileSync(path, JSON.stringify({ createdAt: new Date().toISOString(), model: 'gpt-4.1-mini-2025-04-14', summary, cases: output }, null, 2));
+writeFileSync(path, JSON.stringify({ createdAt: new Date().toISOString(), model: process.env.AI_COACH_MODEL ?? defaultCoachModel, summary, cases: output }, null, 2));
 console.log(`결과: ${passed}/${output.length} 기대 범위 충족 · 강약 역전 ${pairs ? `${inversions}/${pairs}` : '측정 안 함'} · ${path}`);
 if (passed !== output.length) process.exitCode = 2;

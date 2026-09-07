@@ -302,7 +302,8 @@ test('live adapter sends structured requests and rejects malformed responses wit
   assert.ok(usage.every(item => item.gameId === game.id));
   assert.equal(usage[0].model, 'gpt-5.4-mini-2026-03-17');
   assert.equal(usage[0].estimatedUsd, 0.0008625);
-  assert.equal(usage[1].estimatedUsd, 0.00041);
+  assert.equal(usage[1].estimatedUsd, 0.0008625);
+  assert.equal(usage[1].model, 'gpt-5.4-mini-2026-03-17');
   assert.equal(createAI({ key: 'test-only-key', enabled: false }).mode, 'demo');
 
   let evaluationRequest;
@@ -314,7 +315,8 @@ test('live adapter sends structured requests and rejects malformed responses wit
   await evaluationAI.evaluate(game);
   const ownIds = game.messages.filter(message => message.role === 'user' && !message.background).map(message => message.id);
   const schema = evaluationRequest.response_format.json_schema.schema;
-  assert.equal(evaluationRequest.seed, 778);
+  assert.equal(evaluationRequest.seed, undefined);
+  assert.equal(evaluationRequest.reasoning_effort, 'none');
   assert.deepEqual(schema.properties.criteria.items.properties.evidenceIds.items.enum, ownIds);
   assert.deepEqual(schema.properties.strengths.items.properties.messageId.enum, ownIds);
   assert.equal(schema.properties.strengths.maxItems, 2);
@@ -337,6 +339,8 @@ test('evaluation baseline contains 30 balanced, source-linked cases', () => {
     assert.equal(game.messages.filter(message => message.role === 'user' && !message.background).length, item.user.length);
   }
   assert.match(validateCases({ ...document, sourceIds: [...document.sourceIds, 'X99'] }, research).errors.join('\n'), /조사 문서에 없는 출처/);
+  assert.equal(validateCases({ ...document, scenarioIds: [] }, research).ok, false);
+  assert.equal(validateCases({ ...document, cases: document.cases.filter(item => item.scenarioId !== 'cancelled') }, research).ok, false);
 });
 
 test('realism checks catch role reversal, fact reversal and repeated endings', () => {

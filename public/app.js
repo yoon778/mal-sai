@@ -1,7 +1,7 @@
 const main = document.querySelector('#main');
 const notice = document.querySelector('#notice');
 let config, game, pending = false, draft = [], inputText = '', delayMinutes = 0, hintOpen = false, topicOpen = false;
-let settings = { gender: 'random', speech: 'random', interest: 'random', initiative: 'random', humor: 'random', scenarioId: 'random' };
+let settings = { gender: 'random', speech: 'random', interest: 'random', initiative: 'random', humor: 'random', channel: 'random', scenarioId: 'random' };
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const button = (action, text, className = '', attrs = '') => `<button type="button" data-action="${action}" class="${className}" ${attrs}>${text}</button>`;
 const clock = minutes => {
@@ -38,7 +38,7 @@ function bubble(message, { preview = false, review = false } = {}) {
   return `<div class="${classes}" id="message-${escape(message.id)}">
     ${!own ? `<span class="small-avatar ${followsSame ? 'ghost' : ''}" aria-hidden="true">${escape(game.profile.name.slice(-1))}</span>` : ''}
     <div class="message-content">${!own && !followsSame ? `<span class="sender">${escape(game.profile.name)}</span>` : ''}<div class="bubble">${escape(message.text)}</div>
-    ${!leadsSame ? `<div class="message-meta">${message.background ? '이전 대화' : clock(message.minute)}${own && !message.background ? ` · ${message.readAt === null ? '안 읽음' : `${clock(message.readAt)} 읽음`}` : ''}</div>` : ''}
+    ${!leadsSame ? `<div class="message-meta">${message.background ? escape(game.scenario.historyLabel) : clock(message.minute)}${own && !message.background ? ` · ${message.readAt === null ? '안 읽음' : `${clock(message.readAt)} 읽음`}` : ''}</div>` : ''}
     ${review && own && !message.background && !leadsSame ? button('retry', '이 답장부터 다시', 'text-button retry', `data-turn="${message.turn}"`) : ''}</div></div>`;
 }
 
@@ -57,21 +57,27 @@ function renderPreview() {
         ${select('interest', '상대의 초기 관심', [['random', '랜덤'], ['open', '알아가는 중'], ['low', '관심이 낮은 상황']])}
         ${select('initiative', '대화 적극성', [['random', '랜덤'], ['calm', '차분하게'], ['active', '적극적으로']])}
         ${select('humor', '농담 선호', [['random', '랜덤'], ['plain', '담백하게'], ['light', '가볍게 장난치기']])}
+        ${select('channel', '연락처만 받은 상황의 채널', [['random', '랜덤'], ['kakao', '전화번호 · 카톡'], ['instagram', '인스타 DM']])}
         ${select('scenarioId', '연습할 상황', [['random', '랜덤 상황'], ...config.scenarios.map(s => [s.id, s.title])])}
       </div>${button('shuffle', '설정 적용해서 다시 뽑기', 'secondary wide')}</details>
       <p class="quiet adult-note">20세 이상 성인을 위한 가상의 대화 연습이에요</p>
     </section>
     <section class="scenario-preview" aria-label="대화 시작 준비"><div class="scenario-heading"><span class="eyebrow">오늘의 상황</span>${button('shuffle', '다른 상황 ↻', 'text-button')}</div>
       <div class="scenario-description"><span class="tag">${escape(game.scenario.label)}</span><h2>${escape(game.scenario.title)}</h2><p>${escape(game.scenario.context)}</p></div>
-      <div class="chat-heading"><span class="avatar">${escape(game.profile.name.slice(-1))}</span><div><strong>${escape(game.profile.name)}</strong><span>${game.profile.age}세 · ${escape(game.profile.gender === 'female' ? '여성' : '남성')} · ${escape(game.profile.speechStyle)}</span></div><span class="history-tag">이전 대화</span></div>
+      <div class="chat-heading"><span class="avatar">${escape(game.profile.name.slice(-1))}</span><div><strong>${escape(game.profile.name)}</strong><span>${game.profile.age}세 · ${escape(game.profile.gender === 'female' ? '여성' : '남성')} · ${escape(game.profile.speechStyle)}</span></div><span class="history-tag">${escape(game.scenario.historyLabel)}</span></div>
       <p class="preview-tip">말투와 관심사를 살펴보고 이어서 대화해 보세요</p>
-      <div class="preview-messages">${game.messages.map(m => bubble(m, { preview: true })).join('')}</div>
+      ${storyPanel()}<div class="preview-messages">${game.messages.map(m => bubble(m, { preview: true })).join('')}</div>
       <div class="preview-bottom">${button('start', '이어서 대화하기 <span aria-hidden="true">↗</span>', 'primary wide')}${modeNote()}</div>
     </section>
   </div>`;
 }
 
+function storyPanel() {
+  return game.scenario.story ? `<aside class="story-card" aria-label="상대의 스토리"><span>오늘의 스토리 · 가상 게시물</span><p>${escape(game.scenario.story)}</p><small>스토리 속 소재로 DM을 시작해 보세요</small></aside>` : '';
+}
+
 function unreadPanel() {
+  if (game.canWaitToStart) return `<div class="first-contact-panel"><strong>지금 먼저 보낼까요?</strong><p>아래에서 답장을 쓰거나 가상 시간을 넘겨보세요</p><div class="read-actions">${button('wait-start', '30분 뒤', 'secondary', 'data-delay="30"')}${button('wait-start', '2시간 뒤', 'text-button', 'data-delay="120"')}${button('wait-start', '하루 뒤', 'text-button', 'data-delay="1440"')}</div><small>작성 속도는 평가하지 않아요</small></div>`;
   if (game.waiting) return `<div class="unread-panel" role="status"><strong>아직 답장이 없어요</strong><p>상대에게도 자기 일정과 대화 속도가 있어요<br>답장 속도만으로 마음을 단정하지 말고 조금 기다려 봐요</p><div class="read-actions">${button('wait', '30분 기다리기', 'secondary', 'data-delay="30"')}${button('wait', '2시간 기다리기', 'text-button', 'data-delay="120"')}</div><p>가상 시간만 이동해요</p></div>`;
   const count = game.messages.filter(m => m.role === 'partner' && m.readAt === null).length;
   if (!count) return '';
@@ -94,10 +100,10 @@ function renderChat() {
     <div class="goal"><span>이번 연습의 목표</span><strong>${escape(game.scenario.goal)}</strong></div>
     <div class="progress-label"><strong>나의 답장</strong><span>${game.turn} / 5</span></div><div class="progress" role="progressbar" aria-label="답장 진행" aria-valuemin="0" aria-valuemax="5" aria-valuenow="${game.turn}">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= game.turn ? 'filled' : ''}"></i>`).join('')}</div>
     <p class="quiet">말풍선을 나눠 보내도 한 번의 답장이에요.<br>가상 시간은 실제로 기다리지 않아요.</p>
-    ${game.comparison ? '<div class="retry-note">다시 연습하는 중<br><small>바꾼 답장과 이전 반응을 비교해보세요</small></div>' : ''}
+    <p class="atmosphere"><span>가상 대화 분위기</span>${escape(game.atmosphere)}</p>${game.comparison ? '<div class="retry-note">다시 연습하는 중<br><small>바꾼 답장과 이전 반응을 비교해보세요</small></div>' : ''}
     ${modeNote()}</aside>
     <section class="chat-window" aria-label="메신저 대화"><div class="chat-heading"><span class="avatar">${escape(game.profile.name.slice(-1))}</span><div><strong>${escape(game.profile.name)}</strong><span>${escape(game.profile.gender === 'female' ? '여성' : '남성')} · ${escape(game.profile.speechStyle)}</span></div><span class="virtual-clock">가상 시간 <b>${clock(game.minute)}</b></span></div>
-      <div class="chat-messages" id="chat-scroll" role="log" aria-label="대화 기록" aria-live="polite"><div class="history-divider">이전 대화</div>${game.messages.filter(m => m.background).map(m => bubble(m)).join('')}<div class="history-divider">오늘 · 연습 시작</div>${game.messages.filter(m => !m.background).map(m => bubble(m)).join('')}${!game.messages.some(m => !m.background) ? '<p class="end-note">이전 대화를 떠올리며, 먼저 한마디 건네보세요</p>' : ''}${unreadPanel()}${ended && !unread ? '<p class="end-note">다섯 번의 답장을 마쳤어요. 이제 함께 돌아볼까요?</p>' : ''}</div>
+      <div class="chat-messages" id="chat-scroll" role="log" aria-label="대화 기록" aria-live="polite"><div class="history-divider">${escape(game.scenario.historyLabel)}</div>${game.messages.filter(m => m.background).map(m => bubble(m)).join('')}<div class="history-divider">연습 시작 · ${game.channel === 'instagram' ? '인스타 DM' : '카톡'}</div>${storyPanel()}${game.messages.filter(m => !m.background).map(m => bubble(m)).join('')}${!game.messages.some(m => !m.background) ? '<p class="end-note">이전 대화를 떠올리며, 먼저 한마디 건네보세요</p>' : ''}${unreadPanel()}${ended && !unread ? '<p class="end-note">다섯 번의 답장을 마쳤어요. 이제 함께 돌아볼까요?</p>' : ''}</div>
       <div class="composer-area">${ended ? button('finish', '대화 복기하기 ↗', 'primary wide', unread ? 'disabled' : '') : `
         <div class="composer-toolbar"><div class="coach-actions">${button('hint', '막막해요 · 힌트', `text-button ${hintOpen ? 'selected' : ''}`, unread ? 'disabled' : '')}${button('topic', '말이 끊겼어요 · 주제 찾기', `text-button ${topicOpen ? 'selected' : ''}`, unread ? 'disabled' : '')}</div><label class="delay-label">답장 시점<select id="reply-delay" ${unread ? 'disabled' : ''}>${[[0, '바로'], [5, '5분 뒤'], [30, '30분 뒤'], [120, '2시간 뒤']].map(([v, t]) => `<option value="${v}" ${delayMinutes === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label></div>
         ${hintOpen && game.hint ? `<div class="hint"><span>이런 방향은 어때요?</span><p>${escape(game.hint)}</p><small>힌트는 감점 없이 볼 수 있어요 · ${game.totalHints}회 사용</small></div>` : ''}
@@ -134,7 +140,7 @@ function coachingCards(items) {
     const preceding = game.messages.slice(start + 1, end + 1);
     return `<article class="coaching-card ${item.kind}"><div class="coaching-heading"><span>장면 ${index + 1} · ${message.turn}번째 답장</span><b>${item.kind === 'strength' ? '잘 이어갔어요' : '이렇게 바꿔볼까요'}</b></div>
       <div class="coaching-original"><small>상대의 말</small>${preceding.length ? preceding.map(m => `<blockquote>${escape(m.text)}</blockquote>`).join('') : '<p>먼저 대화를 시작한 장면</p>'}<small>내가 보낸 답장</small><blockquote class="own-quote">${escape(message.text)}</blockquote></div>
-      <p>${escape(item.reason)}</p><div class="coaching-alternative"><h3>그때 이렇게 답해볼 수도 있어요</h3><blockquote>${escape(item.alternative)}</blockquote></div>
+      <p>${escape(item.reason)}</p>${item.principle ? `<details class="principle-source"><summary>${escape(item.principle.title)} · 참고 원칙</summary><p>조사 내용을 바탕으로 만든 연습 기준이에요</p><a href="${escape(item.principle.source.url)}" target="_blank" rel="noopener noreferrer">${escape(item.principle.source.title)}</a><small>${escape(item.principle.source.access)}</small></details>` : ''}<div class="coaching-alternative"><h3>그때 이렇게 답해볼 수도 있어요</h3><blockquote>${escape(item.alternative)}</blockquote></div>
       <h3>그다음에는</h3><p>${escape(item.nextStep)}</p>${button('retry', '이 장면부터 다시 답해보기 ↗', 'primary', `data-turn="${message.turn}"`)}</article>`;
   }).join('')}</section>`;
 }
@@ -149,13 +155,24 @@ function feedbackPanel() {
   </form></section>`;
 }
 
+function expressionNotes() {
+  const notes = game.result.spellingNotes ?? [];
+  return `<section class="expression-notes"><p class="eyebrow">표기만 잠깐 확인</p><p class="quiet">채팅식 표현·가벼운 오타는 넘어가요 · 표기 안내는 기술 점수와 별개예요</p>${notes.length ? notes.map(item => `<article><blockquote>${escape(item.original)} <span aria-hidden="true">→</span> ${escape(item.suggestion)}</blockquote><p>${escape(item.reason)}</p></article>`).join('') : `<p>${game.mode === 'demo' ? '체험 모드에서는 맞춤법을 검사하지 않아요' : '확인하는 표현 중 따로 안내할 오류는 없어요'}</p>`}<small>현재는 어이없다 표기와 아픈 상대에게 쓰는 나아·나으세요 표현만 확인해요</small></section>`;
+}
+
+function eventReview() {
+  const events = game.result.events ?? [];
+  if (!events.length) return '';
+  return `<section class="event-review"><p class="eyebrow">대화 속 선택</p>${events.map(event => `<p>${event.kind === 'contact-repair' ? '연락 약속을 놓친 부분을 설명하며 대화를 이어갔어요' : event.missedPromise ? '연락하겠다는 약속 뒤 하루를 넘겨 상대가 먼저 안부를 물었어요' : '상대가 먼저 연락했어요 · 먼저 보낸 사람만으로 감점하지 않아요'}</p>`).join('')}<p class="quiet">약속을 놓친 사건과 그 뒤 답장하는 기술을 나누어 살펴보세요</p></section>`;
+}
+
 function renderReview() {
   const result = game.result;
   const unscored = game.mode === 'demo' ? 'AI 연결 전' : '관찰 부족';
   main.innerHTML = `<div class="review-page"><div class="review-top"><div><p class="eyebrow">오늘의 대화 복기</p><h1>다음 한마디는,<br>조금 더 편하게.</h1><p>${escape(result.summary)}</p></div>${button('home', '새 상황 연습하기 ↗', 'primary')}</div>
     ${modeNote()}<div class="review-grid"><section class="score-panel"><p class="eyebrow">대화 기술</p><div class="score">${result.score ?? '—'}<span>${result.score === null ? unscored : '/ 100'}</span></div><p class="quiet">${game.mode === 'demo' ? '실제 AI를 연결하면 근거가 있는 점수를 볼 수 있어요.' : `관찰 범위 ${result.coverage}% · 짧은 대화에 대한 임시 평가예요.`}</p><div class="rubric-list">${result.criteria.map(c => `<details><summary><span>${escape(c.label)}</span><b>${c.score === null ? unscored : `${c.score} / 4`}</b></summary><p>${escape(c.reason)}</p>${c.evidenceIds.map(id => `<blockquote>${escape(game.messages.find(m => m.id === id)?.text)}</blockquote>`).join('')}</details>`).join('')}</div><p class="quiet">힌트 ${game.totalHints}회 · 감점 없음</p></section>
       <div class="feedback-column"><section class="outcome"><span class="eyebrow">이번 상황의 결과</span><h2>${escape(result.outcome)}</h2><p>상황 결과와 대화 기술은 별개예요. 약속이 잡히지 않아도 좋은 대응일 수 있어요.</p></section>
-      ${result.moments?.length ? coachingCards(result.moments) : `${feedbackItems(result.strengths, '잘 이어간 부분', 'strength')}${feedbackItems(result.improvements, game.mode === 'demo' ? '스스로 돌아보기' : '다르게 해볼 부분', 'improvement')}`}
+      ${eventReview()}${expressionNotes()}${result.moments?.length ? coachingCards(result.moments) : `${feedbackItems(result.strengths, '잘 이어간 부분', 'strength')}${feedbackItems(result.improvements, game.mode === 'demo' ? '스스로 돌아보기' : '다르게 해볼 부분', 'improvement')}`}
       ${game.comparison && result.score !== null && game.comparison.score !== null ? `<p class="score-comparison">이전 기술 점수 ${game.comparison.score} · 이번 ${result.score}<br><small>AI 평가의 변동이 있으므로 차이 자체를 실력 향상으로 단정하지 않아요.</small></p>` : ''}</div></div>
     ${comparisonPanel()}<details class="full-transcript"><summary>전체 대화에서 다시 시작할 답장 고르기</summary><div>${game.messages.map(m => bubble(m, { review: true })).join('')}</div></details>${feedbackPanel()}
     <p class="review-footnote">평가 기준은 연구와 사례를 참고해 설계한 초안이에요. 같은 대화도 점수가 달라질 수 있으니 숫자 하나보다 연결된 답장과 행동 제안을 살펴보세요. 사람의 매력이나 실제 상대의 속마음을 판정하지 않아요.</p></div>`;
@@ -224,6 +241,7 @@ main.addEventListener('click', event => {
   if (name === 'start') return run(() => action('start'), '대화 시작 중…');
   if (name === 'read') return run(() => action('read', { delayMinutes: Number(target.dataset.delay) }), '메시지 읽는 중…');
   if (name === 'wait') return run(() => action('wait', { delayMinutes: Number(target.dataset.delay) }), '가상 시간 이동 중…');
+  if (name === 'wait-start') return run(async () => { await action('wait-start', { delayMinutes: Number(target.dataset.delay) }); hintOpen = false; topicOpen = false; }, '가상 시간 이동 중…');
   if (name === 'hint') return run(async () => { await action('hint'); hintOpen = !hintOpen; topicOpen = false; }, '대화를 이어갈 실마리 찾는 중…');
   if (name === 'topic') return run(async () => { await action('topic'); topicOpen = !topicOpen; hintOpen = false; }, '이어갈 주제를 찾는 중…');
   if (name === 'finish') return run(() => action('finish'), '다섯 번의 답장을 돌아보는 중…');
@@ -245,7 +263,12 @@ main.addEventListener('submit', event => {
   event.preventDefault();
   const messages = [...draft, ...(inputText.trim() ? [inputText.trim()] : [])];
   if (!messages.length) return;
-  run(async () => { await action('send', { messages, delayMinutes }); draft = []; inputText = ''; hintOpen = false; topicOpen = false; delayMinutes = 0; }, game.mode === 'demo' ? '체험 상대의 답장 준비 중…' : `${game.profile.name}의 답장을 기다리는 중…`);
+  run(async () => {
+    const previousTurn = game.turn;
+    await action('send', { messages, delayMinutes });
+    if (game.turn > previousTurn) { draft = []; inputText = ''; }
+    hintOpen = false; topicOpen = false; delayMinutes = 0;
+  }, game.mode === 'demo' ? '체험 상대의 답장 준비 중…' : `${game.profile.name}의 답장을 기다리는 중…`);
 });
 main.addEventListener('keydown', event => {
   if (event.target.id === 'message-input' && event.key === 'Enter' && !event.shiftKey && !event.isComposing && !pending) { event.preventDefault(); event.target.form.requestSubmit(); }

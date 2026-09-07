@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "scenarioIds": ["after-date", "new-contact", "restart", "second-date", "cancelled"],
   "notice": "제품 평가 기준을 검증하기 위한 창작 사례다. 연애 성공이나 사람의 매력을 판정하는 정답 데이터가 아니다.",
   "sourceIds": ["R01", "R02", "R03", "R04", "R05", "R06", "R07", "K01", "K02"],
   "cases": [
