@@ -173,6 +173,16 @@ test('budget survives restart, stops before overspend and fails closed on corrup
   assert.throws(() => new Budget(directory, 0.003).reserve('hello', 100), /예산 기록/);
 });
 
+test('successful budget reservations settle to actual usage', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'sai-budget-settle-'));
+  const budget = new Budget(directory, 0.003);
+  const reserved = budget.reserve('hello', 100);
+  budget.settle(reserved, 410);
+  const ledger = JSON.parse(readFileSync(join(directory, 'budget.json'), 'utf8'));
+  assert.equal(ledger.reservedMicros, 410);
+  assert.equal(ledger.requests, 1);
+});
+
 test('live adapter sends structured requests and rejects malformed responses without a paid call', async () => {
   let captured;
   const directory = mkdtempSync(join(tmpdir(), 'sai-adapter-'));
@@ -203,9 +213,13 @@ test('live adapter sends structured requests and rejects malformed responses wit
   await evaluationAI.evaluate(game);
   const ownIds = game.messages.filter(message => message.role === 'user' && !message.background).map(message => message.id);
   const schema = evaluationRequest.response_format.json_schema.schema;
+  assert.equal(evaluationRequest.seed, 778);
   assert.deepEqual(schema.properties.criteria.items.properties.evidenceIds.items.enum, ownIds);
   assert.deepEqual(schema.properties.strengths.items.properties.messageId.enum, ownIds);
   assert.equal(schema.properties.strengths.maxItems, 2);
+  const evaluationData = JSON.parse(evaluationRequest.messages[1].content);
+  assert.ok(evaluationData.backgroundContext.every(message => message.background));
+  assert.ok(evaluationData.practiceTranscript.every(message => !message.background));
 });
 
 test('evaluation baseline contains 30 balanced, source-linked cases', () => {

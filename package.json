@@ -6,11 +6,12 @@
   "engines": { "node": ">=22" },
   "scripts": {
     "start": "node --env-file-if-exists=.env server.js",
-    "check": "node --check server.js && node --check lib/game.js && node --check lib/ai.js && node --check lib/eval.js && node --check lib/realism.js && node --check public/app.js && node --check scripts/evaluate.js && node --check scripts/smoke-live.js && node --check scripts/evaluate-realism.js",
+    "check": "node --check server.js && node --check lib/game.js && node --check lib/ai.js && node --check lib/eval.js && node --check lib/realism.js && node --check public/app.js && node --check scripts/evaluate.js && node --check scripts/smoke-live.js && node --check scripts/evaluate-realism.js && node --check scripts/evaluate-reliability.js",
     "test": "node --test",
     "eval:validate": "node scripts/evaluate.js",
     "eval:ai": "node --env-file-if-exists=.env scripts/evaluate.js --live",
     "smoke:ai": "node --env-file-if-exists=.env scripts/smoke-live.js",
-    "realism:ai": "node --env-file-if-exists=.env scripts/evaluate-realism.js"
+    "realism:ai": "node --env-file-if-exists=.env scripts/evaluate-realism.js",
+    "reliability:ai": "node --env-file-if-exists=.env scripts/evaluate-reliability.js"
   }
 }

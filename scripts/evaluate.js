@@ -67,7 +67,18 @@ for (const item of selected) {
 mkdirSync(directory, { recursive: true });
 const timestamp = new Date().toISOString().replaceAll(':', '-');
 const path = join(directory, `eval-${timestamp}.json`);
-writeFileSync(path, JSON.stringify({ createdAt: new Date().toISOString(), model: 'gpt-4.1-mini-2025-04-14', cases: output }, null, 2));
 const passed = output.filter(item => item.pass).length;
-console.log(`결과: ${passed}/${output.length} 기대 범위 충족 · ${path}`);
+let pairs = 0;
+let inversions = 0;
+for (const scenarioId of new Set(selected.map(item => item.scenarioId))) {
+  const strong = output.filter(item => item.caseId.startsWith(`${scenarioId}-strong-`) && Number.isFinite(item.score));
+  const weak = output.filter(item => item.caseId.startsWith(`${scenarioId}-weak-`) && Number.isFinite(item.score));
+  for (const strongCase of strong) for (const weakCase of weak) {
+    pairs++;
+    if (strongCase.score < weakCase.score) inversions++;
+  }
+}
+const summary = { passed, total: output.length, passRate: output.length ? passed / output.length : 0, pairs, inversions, inversionRate: pairs ? inversions / pairs : null };
+writeFileSync(path, JSON.stringify({ createdAt: new Date().toISOString(), model: 'gpt-4.1-mini-2025-04-14', summary, cases: output }, null, 2));
+console.log(`결과: ${passed}/${output.length} 기대 범위 충족 · 강약 역전 ${pairs ? `${inversions}/${pairs}` : '측정 안 함'} · ${path}`);
 if (passed !== output.length) process.exitCode = 2;

@@ -57,6 +57,7 @@ npm run eval:validate
 npm run smoke:ai -- --limit 1
 npm run eval:ai -- --limit 3
 npm run realism:ai
+npm run reliability:ai
 ```
 
 `smoke:ai`는 대표 상황을 실제로 완주하고 대화·힌트·평가의 응답 시간과 토큰·추정 비용을 `.data/smoke-live-*.json`에 기록합니다. 한 판부터 확인한 뒤 최대 세 판까지 실행합니다.
@@ -69,6 +70,7 @@ npm run realism:ai
 - 로컬 API 비용 상한과 사용량 기록 적용
 - 실제 AI 대화·힌트·평가 3상황 완주 검증
 - 실제 AI 상대 10회·답장 50개 현실감 회귀 검증
+- AI 평가 기준 사례 적중률 93.3%·강약 역전 0% 검증
 
 세부 내용: [구현 상태](./docs/implementation-status.md) · [해커톤 로드맵](./docs/hackathon-roadmap.md)
 
