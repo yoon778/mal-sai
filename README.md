@@ -4,6 +4,8 @@
 
 Node.js 22 이상에서 `npm start` 후 <http://localhost:3000>에 접속합니다. 패키지 설치는 필요하지 않습니다. `npm test`로 핵심 동작을 검증합니다.
 
+`npm run eval:validate`는 비용 없이 AI 평가 기준 사례 30개의 구조와 균형을 검사합니다. 실제 AI 평가는 키를 설정한 뒤 `npm run eval:ai -- --limit 3`으로 작은 묶음부터 실행합니다. 결과는 `.data/eval-*.json`에 저장됩니다.
+
 기본은 무료 체험 모드이며 준비된 반응을 사용합니다. 실제 AI 점수는 표시하지 않습니다.
 
 실제 AI는 `.env.example`을 `.env`로 복사하고 `OPENAI_API_KEY`와 `AI_ENABLED=true`를 설정한 뒤 서버를 재시작하면 연결합니다. 키는 채팅에 붙이지 말고 로컬 파일에 입력하세요. 대화는 OpenAI로 전송됩니다.

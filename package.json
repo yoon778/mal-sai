@@ -6,7 +6,9 @@
   "engines": { "node": ">=22" },
   "scripts": {
     "start": "node --env-file-if-exists=.env server.js",
-    "check": "node --check server.js && node --check lib/game.js && node --check lib/ai.js && node --check public/app.js",
-    "test": "node --test"
+    "check": "node --check server.js && node --check lib/game.js && node --check lib/ai.js && node --check lib/eval.js && node --check public/app.js && node --check scripts/evaluate.js",
+    "test": "node --test",
+    "eval:validate": "node scripts/evaluate.js",
+    "eval:ai": "node --env-file-if-exists=.env scripts/evaluate.js --live"
   }
 }

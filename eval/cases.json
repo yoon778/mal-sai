@@ -1,0 +1,221 @@
+{
+  "version": 1,
+  "notice": "제품 평가 기준을 검증하기 위한 창작 사례다. 연애 성공이나 사람의 매력을 판정하는 정답 데이터가 아니다.",
+  "sourceIds": ["R01", "R02", "R03", "R04", "R05", "R06", "R07", "K01", "K02"],
+  "cases": [
+    {
+      "id": "after-date-strong-context", "scenarioId": "after-date", "quality": "strong",
+      "partner": "오늘 하루 잘 보내셨어요? 저는 아직 일이 조금 남았네요",
+      "user": ["아직 일 중이군요. 끝나고 편할 때 답해요! 어제 얘기한 영화 제목 다시 찾아봤어요 ㅎㅎ"],
+      "expected": { "context": [3, 4], "tone": [3, 4], "respect": [3, 4] },
+      "sourceIds": ["R01", "R04", "R05"], "reason": "공개된 업무 상황을 받아주고 공동 관심사를 다시 연결한다"
+    },
+    {
+      "id": "after-date-strong-reciprocal", "scenarioId": "after-date", "quality": "strong",
+      "partner": "오늘 하루 잘 보내셨어요? 저는 아직 일이 조금 남았네요",
+      "user": ["저는 퇴근하고 동네 한 바퀴 걸었어요", "일 마치면 보통 어떻게 쉬세요?"],
+      "expected": { "reciprocity": [3, 4], "context": [2, 4] },
+      "sourceIds": ["R01", "R02"], "reason": "자기 이야기를 짧게 보태고 상대가 답할 수 있는 후속 질문을 남긴다"
+    },
+    {
+      "id": "after-date-weak-pressure", "scenarioId": "after-date", "quality": "weak",
+      "partner": "오늘 하루 잘 보내셨어요? 저는 아직 일이 조금 남았네요",
+      "user": ["일 중이어도 잠깐 답장은 할 수 있잖아요. 지금 뭐 해요?"],
+      "expected": { "tone": [0, 1], "respect": [0, 1] },
+      "sourceIds": ["R04", "R07"], "reason": "상대가 공개한 일정 대신 즉시 답장을 요구한다"
+    },
+    {
+      "id": "after-date-weak-generic", "scenarioId": "after-date", "quality": "weak",
+      "partner": "오늘 하루 잘 보내셨어요? 저는 아직 일이 조금 남았네요",
+      "user": ["네"],
+      "expected": { "context": [0, 1], "reciprocity": [0, 1] },
+      "sourceIds": ["R01", "R02"], "reason": "상대가 건넨 상황과 질문 어느 쪽도 이어가지 않는다"
+    },
+    {
+      "id": "after-date-mixed-early-invite", "scenarioId": "after-date", "quality": "mixed",
+      "partner": "오늘 하루 잘 보내셨어요? 저는 아직 일이 조금 남았네요",
+      "user": ["고생했어요. 이번 주말에 다시 만날래요?"],
+      "expected": { "context": [2, 4], "clarity": [2, 4], "respect": [1, 3] },
+      "sourceIds": ["R03", "R04"], "reason": "명확한 관심 표현은 가능하지만 상대의 현재 여유를 충분히 살폈는지는 갈릴 수 있다"
+    },
+    {
+      "id": "after-date-mixed-compliment", "scenarioId": "after-date", "quality": "mixed",
+      "partner": "오늘 하루 잘 보내셨어요? 저는 아직 일이 조금 남았네요",
+      "user": ["어제 정말 예쁘셨어요. 일 끝나면 연락 주세요"],
+      "expected": { "clarity": [2, 4], "tone": [1, 3], "respect": [2, 4] },
+      "sourceIds": ["R04", "R07"], "reason": "관심은 분명하고 기다릴 여지도 있으나 관계 단계에 따른 칭찬의 편안함은 개인차가 크다"
+    },
+
+    {
+      "id": "new-contact-strong-followup", "scenarioId": "new-contact", "quality": "strong",
+      "partner": "저는 주말에 동네 서점에 자주 가요. 조용해서 좋더라고요",
+      "user": ["조용한 곳을 좋아하시는군요. 거기서 우연히 발견한 책도 있어요?"],
+      "expected": { "context": [3, 4], "reciprocity": [3, 4] },
+      "sourceIds": ["R01", "R02"], "reason": "상대가 말한 이유를 받아 구체적인 후속 질문으로 이어간다"
+    },
+    {
+      "id": "new-contact-strong-share", "scenarioId": "new-contact", "quality": "strong",
+      "partner": "저는 주말에 동네 서점에 자주 가요. 조용해서 좋더라고요",
+      "user": ["저도 큰 서점보다 작은 동네 서점이 편하더라고요", "추천해 주신 책부터 찾아보려고요"],
+      "expected": { "context": [3, 4], "reciprocity": [2, 4], "tone": [2, 4] },
+      "sourceIds": ["R01", "R02"], "reason": "공통점을 밝히고 이전 추천을 기억했다는 신호를 준다"
+    },
+    {
+      "id": "new-contact-weak-interview", "scenarioId": "new-contact", "quality": "weak",
+      "partner": "저는 주말에 동네 서점에 자주 가요. 조용해서 좋더라고요",
+      "user": ["어디예요? 몇 시에 가요? 누구랑 가요? 몇 시간 있어요?"],
+      "expected": { "reciprocity": [0, 1], "tone": [0, 2] },
+      "sourceIds": ["R01", "R02"], "reason": "자기 이야기는 없이 질문을 몰아 상대가 심문처럼 느낄 수 있다"
+    },
+    {
+      "id": "new-contact-weak-overfamiliar", "scenarioId": "new-contact", "quality": "weak",
+      "partner": "저는 주말에 동네 서점에 자주 가요. 조용해서 좋더라고요",
+      "user": ["그럼 이번 주말에 거기서 단둘이 오래 놀아요. 토요일 1시로 정할게요"],
+      "expected": { "clarity": [2, 4], "respect": [0, 1], "tone": [0, 1] },
+      "sourceIds": ["R04", "R07"], "reason": "제안은 분명하지만 아직 가까워지지 않은 상대의 선택과 일정을 생략한다"
+    },
+    {
+      "id": "new-contact-mixed-question-only", "scenarioId": "new-contact", "quality": "mixed",
+      "partner": "저는 주말에 동네 서점에 자주 가요. 조용해서 좋더라고요",
+      "user": ["어떤 종류의 책을 제일 좋아하세요?"],
+      "expected": { "context": [2, 4], "reciprocity": [1, 3] },
+      "sourceIds": ["R01", "R02"], "reason": "자연스러운 질문이지만 질문만 계속된다면 상호성이 약해질 수 있다"
+    },
+    {
+      "id": "new-contact-mixed-monologue", "scenarioId": "new-contact", "quality": "mixed",
+      "partner": "저는 주말에 동네 서점에 자주 가요. 조용해서 좋더라고요",
+      "user": ["저도 책 정말 좋아해요. 작년에는 소설을 40권 읽었고 요즘은 에세이보다 역사서를 읽는데 제가 좋아하는 작가는요…"],
+      "expected": { "context": [2, 4], "reciprocity": [0, 2] },
+      "sourceIds": ["R02"], "reason": "공통점은 있으나 상대가 끼어들 공간이 적다"
+    },
+
+    {
+      "id": "restart-strong-acknowledge", "scenarioId": "restart", "quality": "strong",
+      "partner": "드디어 마감 끝났어요… 이제 좀 살 것 같네요",
+      "user": ["이번 주 내내 바쁘다고 했는데 드디어 끝났네요. 정말 고생했어요!"],
+      "expected": { "context": [3, 4], "tone": [3, 4] },
+      "sourceIds": ["R05", "R06"], "reason": "이전 일정과 지금의 감정을 함께 알아준다"
+    },
+    {
+      "id": "restart-strong-space", "scenarioId": "restart", "quality": "strong",
+      "partner": "드디어 마감 끝났어요… 이제 좀 살 것 같네요",
+      "user": ["고생했어요. 저는 오늘 새로 생긴 카페에 다녀왔어요", "오늘은 푹 쉬고 내일 편할 때 얘기해요 🙂"],
+      "expected": { "reciprocity": [2, 4], "tone": [3, 4], "respect": [3, 4] },
+      "sourceIds": ["R04", "R05", "R06"], "reason": "자기 이야기를 공유하면서 회복할 여유를 남긴다"
+    },
+    {
+      "id": "restart-weak-accuse", "scenarioId": "restart", "quality": "weak",
+      "partner": "드디어 마감 끝났어요… 이제 좀 살 것 같네요",
+      "user": ["마감이어도 이틀이나 연락 없는 건 너무한 거 아니에요?"],
+      "expected": { "context": [0, 2], "tone": [0, 1], "respect": [0, 1] },
+      "sourceIds": ["R04", "R07"], "reason": "이미 알려진 바쁜 상황을 무시하고 공백을 비난한다"
+    },
+    {
+      "id": "restart-weak-demand", "scenarioId": "restart", "quality": "weak",
+      "partner": "드디어 마감 끝났어요… 이제 좀 살 것 같네요",
+      "user": ["그럼 지금 바로 만나요. 어디로 갈까요?"],
+      "expected": { "clarity": [2, 4], "tone": [0, 2], "respect": [0, 1] },
+      "sourceIds": ["R04"], "reason": "막 끝난 상대의 상태를 살피지 않고 즉시 행동을 요구한다"
+    },
+    {
+      "id": "restart-mixed-invite", "scenarioId": "restart", "quality": "mixed",
+      "partner": "드디어 마감 끝났어요… 이제 좀 살 것 같네요",
+      "user": ["고생했어요! 주말에 맛있는 거 먹으러 갈까요?"],
+      "expected": { "tone": [2, 4], "clarity": [2, 4], "respect": [1, 3] },
+      "sourceIds": ["R03", "R04"], "reason": "긍정적인 제안이지만 먼저 쉬고 싶은지 확인할 여지도 있다"
+    },
+    {
+      "id": "restart-mixed-passive", "scenarioId": "restart", "quality": "mixed",
+      "partner": "드디어 마감 끝났어요… 이제 좀 살 것 같네요",
+      "user": ["고생했어요. 편할 때 연락하세요"],
+      "expected": { "tone": [2, 4], "respect": [3, 4], "reciprocity": [0, 2] },
+      "sourceIds": ["R02", "R04"], "reason": "배려는 분명하지만 대화를 이어갈 실마리는 적다"
+    },
+
+    {
+      "id": "second-date-strong-specific", "scenarioId": "second-date", "quality": "strong",
+      "partner": "토요일에는 약속이 있고 일요일 오후는 괜찮아요",
+      "user": ["그럼 일요일 3시쯤 지난번 얘기한 카페 같이 가실래요? 다른 시간이 편하면 말해주세요"],
+      "expected": { "context": [3, 4], "clarity": [3, 4], "respect": [3, 4] },
+      "sourceIds": ["R04"], "reason": "공개 일정과 공통 관심사를 반영하고 다른 선택도 허용한다"
+    },
+    {
+      "id": "second-date-strong-availability", "scenarioId": "second-date", "quality": "strong",
+      "partner": "이번 주는 날씨 좋다던데, 주말에 뭐 하세요?",
+      "user": ["저는 일요일 오후가 비어요. 전에 말한 카페가 생각났는데 같이 가보고 싶어요", "이번 주가 바쁘면 다음 주도 괜찮아요"],
+      "expected": { "clarity": [3, 4], "reciprocity": [2, 4], "respect": [3, 4] },
+      "sourceIds": ["R04"], "reason": "자기 일정을 밝히고 의도를 전하면서 상대가 고를 수 있게 한다"
+    },
+    {
+      "id": "second-date-weak-vague", "scenarioId": "second-date", "quality": "weak",
+      "partner": "이번 주는 날씨 좋다던데, 주말에 뭐 하세요?",
+      "user": ["언제 한번 봐요"],
+      "expected": { "clarity": [0, 1], "reciprocity": [0, 2] },
+      "sourceIds": ["R04"], "reason": "관심은 암시하지만 상대가 무엇에 답해야 하는지 불분명하다"
+    },
+    {
+      "id": "second-date-weak-ignore-schedule", "scenarioId": "second-date", "quality": "weak",
+      "partner": "토요일에는 약속이 있고 일요일 오후는 괜찮아요",
+      "user": ["저는 토요일밖에 안 돼요. 약속 미루고 저 만나요"],
+      "expected": { "context": [0, 2], "tone": [0, 1], "respect": [0, 1] },
+      "sourceIds": ["R04", "R07"], "reason": "공개된 선약을 존중하지 않고 변경을 요구한다"
+    },
+    {
+      "id": "second-date-mixed-options", "scenarioId": "second-date", "quality": "mixed",
+      "partner": "이번 주는 날씨 좋다던데, 주말에 뭐 하세요?",
+      "user": ["토요일 점심이나 저녁, 일요일 오전이나 오후 중 언제가 좋아요? 카페 아니면 영화도 괜찮아요"],
+      "expected": { "clarity": [1, 3], "respect": [2, 4], "reciprocity": [1, 3] },
+      "sourceIds": ["R04"], "reason": "선택권은 많지만 선택 부담이 커질 수 있다"
+    },
+    {
+      "id": "second-date-mixed-indirect", "scenarioId": "second-date", "quality": "mixed",
+      "partner": "이번 주는 날씨 좋다던데, 주말에 뭐 하세요?",
+      "user": ["저는 카페 갈 사람이 없어서 혼자 있어야겠네요 ㅎㅎ"],
+      "expected": { "clarity": [0, 2], "tone": [1, 3] },
+      "sourceIds": ["R02"], "reason": "농담으로 관심을 드러내지만 상대가 제안인지 푸념인지 알기 어렵다"
+    },
+
+    {
+      "id": "cancelled-strong-recovery", "scenarioId": "cancelled", "quality": "strong",
+      "partner": "정말 죄송한데 오늘 몸살이 심해서 못 나갈 것 같아요…",
+      "user": ["아쉽지만 몸이 먼저죠. 오늘 푹 쉬고 괜찮아지면 그때 다시 얘기해요"],
+      "expected": { "context": [3, 4], "tone": [3, 4], "respect": [3, 4] },
+      "sourceIds": ["R04", "R05"], "reason": "아쉬움과 배려를 함께 표현하고 회복 후 선택을 남긴다"
+    },
+    {
+      "id": "cancelled-strong-later", "scenarioId": "cancelled", "quality": "strong",
+      "partner": "정말 죄송한데 오늘 몸살이 심해서 못 나갈 것 같아요…",
+      "user": ["많이 아픈가 봐요. 약 잘 챙겨 먹고 쉬어요", "나아지면 다음 일정은 천천히 정해요 🙂"],
+      "expected": { "context": [3, 4], "tone": [3, 4], "respect": [3, 4] },
+      "sourceIds": ["R04", "R05", "R06"], "reason": "현재 감정에 맞게 반응하고 새 약속을 압박하지 않는다"
+    },
+    {
+      "id": "cancelled-weak-guilt", "scenarioId": "cancelled", "quality": "weak",
+      "partner": "정말 죄송한데 오늘 몸살이 심해서 못 나갈 것 같아요…",
+      "user": ["저 만나기 싫어서 핑계 대는 거죠? 저 오늘 시간 다 비웠는데요"],
+      "expected": { "context": [0, 1], "tone": [0, 1], "respect": [0, 1] },
+      "sourceIds": ["R04", "R07"], "reason": "확인되지 않은 속마음을 단정하고 죄책감을 준다"
+    },
+    {
+      "id": "cancelled-weak-reschedule", "scenarioId": "cancelled", "quality": "weak",
+      "partner": "정말 죄송한데 오늘 몸살이 심해서 못 나갈 것 같아요…",
+      "user": ["그럼 내일 3시는 되죠? 지금 확정해 주세요"],
+      "expected": { "tone": [0, 1], "respect": [0, 1], "clarity": [2, 4] },
+      "sourceIds": ["R04"], "reason": "제안은 명확하지만 회복 시점을 모르는 상대에게 즉시 확정을 요구한다"
+    },
+    {
+      "id": "cancelled-mixed-short", "scenarioId": "cancelled", "quality": "mixed",
+      "partner": "정말 죄송한데 오늘 몸살이 심해서 못 나갈 것 같아요…",
+      "user": ["네 알겠어요"],
+      "expected": { "context": [1, 3], "tone": [1, 3], "respect": [2, 4] },
+      "sourceIds": ["R04"], "reason": "경계는 존중하지만 감정이 드러나지 않아 상대가 차갑게 느낄 수도 있다"
+    },
+    {
+      "id": "cancelled-mixed-overcare", "scenarioId": "cancelled", "quality": "mixed",
+      "partner": "정말 죄송한데 오늘 몸살이 심해서 못 나갈 것 같아요…",
+      "user": ["집 어디예요? 제가 지금 약 사서 찾아갈게요"],
+      "expected": { "tone": [2, 4], "respect": [0, 2] },
+      "sourceIds": ["R04", "R07"], "reason": "걱정은 전달되지만 관계 단계와 상대 동의에 따라 부담이 될 수 있다"
+    }
+  ]
+}

@@ -7,6 +7,7 @@ import http from 'node:http';
 import { createServer } from '../server.js';
 import { demoAI, createAI, Budget } from '../lib/ai.js';
 import { rubric, scenarios, backgroundFor } from '../lib/scenarios.js';
+import { buildEvalGame, validateCases } from '../lib/eval.js';
 import { newGame, startGame, readMessages, sendTurn, normalizeEvaluation } from '../lib/game.js';
 
 async function localServer(t, ai = demoAI) {
@@ -192,4 +193,16 @@ test('live adapter sends structured requests and rejects malformed responses wit
   assert.equal(usage.gameId, game.id);
   assert.equal(usage.estimatedUsd, 0.00041);
   assert.equal(createAI({ key: 'test-only-key', enabled: false }).mode, 'demo');
+});
+
+test('evaluation baseline contains 30 balanced, source-linked cases', () => {
+  const document = JSON.parse(readFileSync(new URL('../eval/cases.json', import.meta.url), 'utf8'));
+  const research = readFileSync(new URL('../research/ai-conversation-rubric.md', import.meta.url), 'utf8');
+  assert.deepEqual(validateCases(document, research), { ok: true, errors: [], count: 30 });
+  for (const item of document.cases) {
+    const game = buildEvalGame(item);
+    assert.equal(game.scenario.id, item.scenarioId);
+    assert.equal(game.messages.filter(message => message.role === 'user' && !message.background).length, item.user.length);
+  }
+  assert.match(validateCases({ ...document, sourceIds: [...document.sourceIds, 'X99'] }, research).errors.join('\n'), /조사 문서에 없는 출처/);
 });
