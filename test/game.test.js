@@ -10,6 +10,7 @@ import { rubric, scenarios, backgroundFor, makeProfile } from '../lib/scenarios.
 import { buildEvalGame, validateCases } from '../lib/eval.js';
 import { newGame, startGame, readMessages, sendTurn, normalizeEvaluation } from '../lib/game.js';
 import { assessRealismRun, summarizeRealism } from '../lib/realism.js';
+import { chatText } from '../lib/chat-text.js';
 
 async function localServer(t, ai = demoAI, options = {}) {
   const server = createServer({ ai, ...options });
@@ -271,6 +272,7 @@ test('live adapter sends structured requests and rejects malformed responses wit
     evaluationRequest = JSON.parse(request.body);
     return { ok: true, json: async () => ({ choices: [{ finish_reason: 'stop', message: { content: '{}' } }] }) };
   } });
+  await sendTurn(game, { messages: ['일요일 오후에는 여유 있어요', '같이 카페 갈까요?'], delayMinutes: 0 }, demoAI);
   await evaluationAI.evaluate(game);
   const ownIds = game.messages.filter(message => message.role === 'user' && !message.background).map(message => message.id);
   const schema = evaluationRequest.response_format.json_schema.schema;
@@ -280,6 +282,9 @@ test('live adapter sends structured requests and rejects malformed responses wit
   assert.equal(schema.properties.strengths.maxItems, 2);
   const evaluationData = JSON.parse(evaluationRequest.messages[1].content);
   assert.equal(evaluationData.conversationStyle, game.profile.speechStyle);
+  assert.deepEqual(evaluationData.replyOpportunities[0].user.map(message => message.id), ownIds);
+  assert.ok(evaluationData.replyOpportunities[0].partner.some(message => message.text.includes('주말에 뭐')));
+  assert.equal('interest' in evaluationData, false);
   assert.ok(evaluationData.backgroundContext.every(message => message.background));
   assert.ok(evaluationData.practiceTranscript.every(message => !message.background));
 });
@@ -333,4 +338,49 @@ test('partner reply keeps natural chunks and rejects malformed splitting', () =>
   assert.throws(() => normalizePartnerReply({ ...base, messages: ['괜찮아요', '괜찮아요'] }), /상대 응답/);
   assert.throws(() => normalizePartnerReply({ ...base, messages: ['x'.repeat(181)] }), /상대 응답/);
   assert.throws(() => normalizePartnerReply({ ...base, messages: [' ', '다시 말할게요'] }), /상대 응답/);
+});
+
+test('chat punctuation preserves numbers, links and user wording', () => {
+  assert.equal(chatText('좋아요. 3.5점이에요. https://example.com/a.b'), '좋아요 3.5점이에요 https://example.com/a.b');
+  for (const scenario of scenarios) {
+    assert.ok(backgroundFor(scenario, makeProfile({ speech: 'honorific' })).every(m => !m.text.includes('.')));
+  }
+});
+
+test('delayed replies stay private, expose read state over time and survive retry', async t => {
+  const request = await localServer(t, { ...demoAI, reply: async () => ({ messages: ['늦었네요. 이제 봤어요.'], readAfterMinutes: 60, replyAfterReadMinutes: 120 }) });
+  const { data: created } = await request('/api/games', { scenarioId: 'after-date', interest: 'low' });
+  const path = `/api/games/${created.id}`;
+  await request(`${path}/start`, {});
+  for (let turn = 1; turn <= 5; turn++) {
+    const { data: sent } = await request(`${path}/send`, { messages: ['안녕.'], delayMinutes: 0 });
+    assert.equal(sent.waiting, true);
+    assert.equal(sent.messages.at(-1).text, '안녕.');
+    assert.equal(sent.messages.at(-1).readAt, null);
+    assert.equal(sent.messages.some(m => m.role === 'partner' && m.turn === turn), false);
+    assert.equal('pendingReply' in sent, false);
+    assert.equal('interest' in sent.profile, false);
+    for (const action of ['send', 'finish', 'hint', 'topic']) assert.equal((await request(`${path}/${action}`, { messages: ['추가'], delayMinutes: 0 })).status, 400);
+    assert.equal((await request(`${path}/wait`, { delayMinutes: -30 })).status, 400);
+    const { data: waiting } = await request(`${path}/wait`, { delayMinutes: 120 });
+    assert.equal(waiting.waiting, true);
+    assert.ok(waiting.messages.at(-1).readAt !== null);
+    const { data: delivered } = await request(`${path}/wait`, { delayMinutes: 120 });
+    assert.equal(delivered.waiting, false);
+    assert.equal(delivered.messages.at(-1).text, '늦었네요 이제 봤어요');
+    await request(`${path}/read`, { delayMinutes: 0 });
+  }
+  assert.equal((await request(`${path}/finish`, {})).status, 200);
+  const { data: retry } = await request(`${path}/retry`, { turn: 2 });
+  assert.equal(retry.waiting, false);
+  assert.equal(retry.turn, 1);
+  assert.equal((await request(`${path}/read`, { delayMinutes: 0 })).status, 200);
+});
+
+test('low-interest demo can delay a reply independently of initiative', async () => {
+  const game = newGame({ scenarioId: 'after-date', interest: 'low', initiative: 'active' }, 'demo');
+  startGame(game);
+  await sendTurn(game, { messages: ['오늘은 어때요'], delayMinutes: 0 }, demoAI);
+  assert.ok(game.pendingReply);
+  assert.equal(game.turn, 1);
 });

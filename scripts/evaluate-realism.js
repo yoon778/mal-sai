@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createAI, naturalizeReply } from '../lib/ai.js';
-import { newGame, readMessages, sendTurn, startGame } from '../lib/game.js';
+import { newGame, readMessages, sendTurn, startGame, waitForReply } from '../lib/game.js';
 import { assessRealismRun, summarizeRealism } from '../lib/realism.js';
 
 const replies = {
@@ -45,6 +45,7 @@ for (const plan of plans.slice(0, limit)) {
     const partnerTurns = [];
     for (const text of plan.messages) {
       await sendTurn(game, { messages: [naturalizeReply(text, game.profile.speech)], delayMinutes: 0 }, ai);
+      while (game.pendingReply) waitForReply(game, 120);
       partnerTurns.push({ turn: game.turn, messages: game.messages.filter(message => message.role === 'partner' && message.turn === game.turn).map(message => message.text) });
       readMessages(game, 0);
     }

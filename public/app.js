@@ -1,7 +1,7 @@
 const main = document.querySelector('#main');
 const notice = document.querySelector('#notice');
 let config, game, pending = false, draft = [], inputText = '', delayMinutes = 0, hintOpen = false, topicOpen = false;
-let settings = { gender: 'random', speech: 'random', initiative: 'random', humor: 'random', scenarioId: 'random' };
+let settings = { gender: 'random', speech: 'random', interest: 'random', initiative: 'random', humor: 'random', scenarioId: 'random' };
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const button = (action, text, className = '', attrs = '') => `<button type="button" data-action="${action}" class="${className}" ${attrs}>${text}</button>`;
 const clock = minutes => {
@@ -54,6 +54,7 @@ function renderPreview() {
       <details class="settings"><summary>나에게 맞게 설정<span>선택 사항</span></summary><div class="settings-grid">
         ${select('gender', '대화 상대', [['random', '랜덤'], ['female', '여성'], ['male', '남성']])}
         ${select('speech', '말투', [['random', '랜덤'], ['honorific', '존댓말'], ['casual', '반말']])}
+        ${select('interest', '상대의 초기 관심', [['random', '랜덤'], ['open', '알아가는 중'], ['low', '관심이 낮은 상황']])}
         ${select('initiative', '대화 적극성', [['random', '랜덤'], ['calm', '차분하게'], ['active', '적극적으로']])}
         ${select('humor', '농담 선호', [['random', '랜덤'], ['plain', '담백하게'], ['light', '가볍게 장난치기']])}
         ${select('scenarioId', '연습할 상황', [['random', '랜덤 상황'], ...config.scenarios.map(s => [s.id, s.title])])}
@@ -71,6 +72,7 @@ function renderPreview() {
 }
 
 function unreadPanel() {
+  if (game.waiting) return `<div class="unread-panel" role="status"><strong>아직 답장이 없어요</strong><p>상대에게도 자기 일정과 대화 속도가 있어요<br>답장 속도만으로 마음을 단정하지 말고 조금 기다려 봐요</p><div class="read-actions">${button('wait', '30분 기다리기', 'secondary', 'data-delay="30"')}${button('wait', '2시간 기다리기', 'text-button', 'data-delay="120"')}</div><p>가상 시간만 이동해요</p></div>`;
   const count = game.messages.filter(m => m.role === 'partner' && m.readAt === null).length;
   if (!count) return '';
   return `<div class="unread-panel"><span class="unread-dot"></span><strong>새 메시지 ${count}개</strong><p>지금 읽거나, 가상 시간을 넘겨 읽을 수 있어요</p><div class="read-actions">${button('read', '지금 읽기', 'secondary', 'data-delay="0"')}${button('read', '30분 뒤 읽기', 'text-button', 'data-delay="30"')}${button('read', '2시간 뒤 읽기', 'text-button', 'data-delay="120"')}</div></div>`;
@@ -85,7 +87,7 @@ function comparisonPanel() {
 }
 
 function renderChat() {
-  const unread = game.messages.some(m => m.role === 'partner' && m.readAt === null);
+  const unread = game.waiting || game.messages.some(m => m.role === 'partner' && m.readAt === null);
   const ended = game.turn === 5;
   main.innerHTML = `<div class="play-layout"><aside class="play-sidebar">
     ${button('home', '← 새 연습', 'text-button')}<p class="eyebrow">${escape(game.scenario.label)}</p><h1>${escape(game.scenario.title)}</h1><p>${escape(game.scenario.context)}</p>
@@ -101,7 +103,7 @@ function renderChat() {
         ${hintOpen && game.hint ? `<div class="hint"><span>이런 방향은 어때요?</span><p>${escape(game.hint)}</p><small>힌트는 감점 없이 볼 수 있어요 · ${game.totalHints}회 사용</small></div>` : ''}
         ${topicOpen && game.topicHelp ? `<div class="topic-help"><span>대화 연결 연습</span><dl><div><dt>꺼낼 주제</dt><dd>${escape(game.topicHelp.topic)}</dd></div><div><dt>이렇게 연결</dt><dd>${escape(game.topicHelp.bridge)}</dd></div><div><dt>답을 받으면</dt><dd>${escape(game.topicHelp.next)}</dd></div><div><dt>피할 방식</dt><dd>${escape(game.topicHelp.avoid)}</dd></div></dl><small>그대로 복사하기보다 내 말투로 바꿔보세요 · ${game.totalTopicHelps}회 사용</small></div>` : ''}
         <div class="draft-bubbles">${draft.map((text, i) => `<div class="draft-bubble"><span>${escape(text)}</span>${button('remove-draft', '×', 'text-button', `data-index="${i}" aria-label="작성 중인 말풍선 ${i + 1} 삭제"`)}</div>`).join('')}</div>
-        <form id="composer"><label class="sr-only" for="message-input">답장 작성</label><textarea id="message-input" maxlength="400" rows="2" placeholder="${unread ? '새 메시지를 먼저 읽어주세요' : '나답게, 편하게 답해보세요'}" ${unread ? 'disabled' : ''}>${escape(inputText)}</textarea><div class="composer-bottom"><div class="emoji-row" aria-label="이모티콘">${['🙂', '😂', '🥲', '👍', '☕'].map(emoji => button('emoji', emoji, 'emoji', `data-emoji="${emoji}" aria-label="${emoji} 넣기" ${unread ? 'disabled' : ''}`)).join('')}</div><div>${button('split', '+ 나눠쓰기', 'text-button', unread || draft.length >= 2 ? 'disabled' : '')}<button type="submit" class="primary send" ${unread ? 'disabled' : ''}>보내기 <span aria-hidden="true">↑</span></button></div></div></form>
+        <form id="composer"><label class="sr-only" for="message-input">답장 작성</label><textarea id="message-input" maxlength="400" rows="2" placeholder="${game.waiting ? '상대의 답장을 기다리는 중이에요' : unread ? '새 메시지를 먼저 읽어주세요' : '나답게, 편하게 답해보세요'}" ${unread ? 'disabled' : ''}>${escape(inputText)}</textarea><div class="composer-bottom"><div class="emoji-row" aria-label="이모티콘">${['🙂', '😂', '🥲', '👍', '☕'].map(emoji => button('emoji', emoji, 'emoji', `data-emoji="${emoji}" aria-label="${emoji} 넣기" ${unread ? 'disabled' : ''}`)).join('')}</div><div>${button('split', '+ 나눠쓰기', 'text-button', unread || draft.length >= 2 ? 'disabled' : '')}<button type="submit" class="primary send" ${unread ? 'disabled' : ''}>보내기 <span aria-hidden="true">↑</span></button></div></div></form>
         <div class="composer-help"><span>Enter 전송 · Shift+Enter 줄바꿈</span><span>말풍선당 400자</span></div>`}
       </div>
     </section></div>${comparisonPanel()}`;
@@ -168,7 +170,8 @@ async function run(task, status = '처리 중…') {
     if (previousStage !== game.stage) {
       focus = main.querySelector('h1');
       if (focus) focus.tabIndex = -1;
-    } else if (focusAction === 'read') focus = document.querySelector(game.turn === 5 ? '[data-action="finish"]' : '#message-input');
+    } else if (game.waiting) focus = main.querySelector('[data-action="wait"]');
+    else if (focusAction === 'read') focus = document.querySelector(game.turn === 5 ? '[data-action="finish"]' : '#message-input');
     else if (focusAction === 'hint') focus = main.querySelector('[data-action="hint"]');
     else if (game.stage === 'chat' && game.messages.some(m => m.role === 'partner' && m.readAt === null)) focus = main.querySelector('[data-action="read"]');
     else if (focusAction) focus = [...main.querySelectorAll('[data-action]')].find(el => el.dataset.action === focusAction && (!focusDelay || el.dataset.delay === focusDelay));
@@ -204,6 +207,7 @@ main.addEventListener('click', event => {
   }, '다음 상황 준비 중…');
   if (name === 'start') return run(() => action('start'), '대화 시작 중…');
   if (name === 'read') return run(() => action('read', { delayMinutes: Number(target.dataset.delay) }), '메시지 읽는 중…');
+  if (name === 'wait') return run(() => action('wait', { delayMinutes: Number(target.dataset.delay) }), '가상 시간 이동 중…');
   if (name === 'hint') return run(async () => { await action('hint'); hintOpen = !hintOpen; topicOpen = false; }, '대화를 이어갈 실마리 찾는 중…');
   if (name === 'topic') return run(async () => { await action('topic'); topicOpen = !topicOpen; hintOpen = false; }, '이어갈 주제를 찾는 중…');
   if (name === 'finish') return run(() => action('finish'), '다섯 번의 답장을 돌아보는 중…');

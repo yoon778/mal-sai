@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createAI } from '../lib/ai.js';
-import { finishGame, getHint, newGame, readMessages, sendTurn, startGame } from '../lib/game.js';
+import { finishGame, getHint, newGame, readMessages, sendTurn, startGame, waitForReply } from '../lib/game.js';
 
 const plans = [
   {
@@ -81,6 +81,7 @@ for (const plan of plans.slice(0, limit)) {
     await timed('hint', () => getHint(game, ai));
     for (const text of plan.replies) {
       await timed('partner_reply', () => sendTurn(game, { messages: [text], delayMinutes: 0 }, ai));
+      while (game.pendingReply) waitForReply(game, 120);
       readMessages(game, 0);
     }
     await timed('evaluation', () => finishGame(game, ai));
