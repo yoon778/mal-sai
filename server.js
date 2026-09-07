@@ -81,5 +81,5 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const port = Number(process.env.PORT ?? 3000);
-  createServer().listen(port, '127.0.0.1', () => console.log(`사이 · http://localhost:${port}`));
+  createServer().listen(port, '127.0.0.1', () => console.log(`말사이 · http://localhost:${port}`));
 }

@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="./assets/github-banner.png" alt="사이 — 한국어 썸 대화 연습 서비스" width="100%">
+  <img src="./assets/github-banner.png" alt="말사이 — 한국어 썸 대화 연습 서비스" width="100%">
 </p>
 
-<h1 align="center">사이</h1>
+<h1 align="center">말사이</h1>
 
 <p align="center">
-  한마디씩 가까워지는 한국어 썸 대화 연습
+  대화 사이를 읽는 AI 썸 채팅 연습
 </p>
 
 소개팅 이후처럼 답장이 막막한 순간을 실제 메신저와 가까운 환경에서 연습하는 AI 대화 게임입니다. 상대의 성향과 앞선 대화를 읽고 5번 답장한 뒤, 잘한 점과 고칠 점을 구체적으로 복기합니다.
