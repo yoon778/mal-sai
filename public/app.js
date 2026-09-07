@@ -111,6 +111,20 @@ function feedbackItems(items, title, kind) {
   }).join('')}</section>`;
 }
 
+function rating(name, label) {
+  return `<fieldset class="rating"><legend>${label}</legend><div>${[1, 2, 3, 4, 5].map(value => `<label><input type="radio" name="${name}" value="${value}" required><span>${value}</span></label>`).join('')}</div><small><span>전혀 아니다</span><span>매우 그렇다</span></small></fieldset>`;
+}
+
+function feedbackPanel() {
+  if (game.feedbackSubmitted) return '<section class="user-feedback feedback-done"><span aria-hidden="true">✓</span><div><p class="eyebrow">테스트 의견 저장 완료</p><p>남겨주신 평가는 제품 개선에만 사용해요</p></div></section>';
+  return `<section class="user-feedback"><p class="eyebrow">1분 사용자 테스트</p><h2>이번 연습은 어땠나요?</h2><form id="feedback-form">
+    <div class="ratings">${rating('realism', '상대의 답장이 실제 대화처럼 느껴졌다')}${rating('helpfulness', '복기 내용이 다음 답장에 도움이 됐다')}${rating('retryIntent', '다른 상황도 다시 연습해 보고 싶다')}</div>
+    <label class="blocked"><input type="checkbox" name="blocked"> 진행 중 막혀서 혼자 넘어가기 어려운 순간이 있었다</label>
+    <label class="feedback-note">한 줄 의견 <textarea name="note" maxlength="500" rows="3" placeholder="어색했던 답장이나 이해하기 어려웠던 피드백"></textarea></label>
+    <div class="feedback-submit"><button type="submit" class="primary">테스트 결과 저장</button><p class="quiet">점수와 의견만 저장하며 대화 내용은 포함하지 않아요</p></div>
+  </form></section>`;
+}
+
 function renderReview() {
   const result = game.result;
   const unscored = game.mode === 'demo' ? 'AI 연결 전' : '관찰 부족';
@@ -119,7 +133,7 @@ function renderReview() {
       <div class="feedback-column"><section class="outcome"><span class="eyebrow">이번 상황의 결과</span><h2>${escape(result.outcome)}</h2><p>상황 결과와 대화 기술은 별개예요. 약속이 잡히지 않아도 좋은 대응일 수 있어요.</p></section>
       ${feedbackItems(result.strengths, '잘 이어간 부분', 'strength')}${feedbackItems(result.improvements, game.mode === 'demo' ? '스스로 돌아보기' : '다르게 해볼 부분', 'improvement')}
       ${game.comparison && result.score !== null && game.comparison.score !== null ? `<p class="score-comparison">이전 기술 점수 ${game.comparison.score} · 이번 ${result.score}<br><small>AI 평가의 변동이 있으므로 차이 자체를 실력 향상으로 단정하지 않아요.</small></p>` : ''}</div></div>
-    ${comparisonPanel()}<details class="full-transcript"><summary>전체 대화에서 다시 시작할 답장 고르기</summary><div>${game.messages.map(m => bubble(m, { review: true })).join('')}</div></details>
+    ${comparisonPanel()}<details class="full-transcript"><summary>전체 대화에서 다시 시작할 답장 고르기</summary><div>${game.messages.map(m => bubble(m, { review: true })).join('')}</div></details>${feedbackPanel()}
     <p class="review-footnote">평가 기준은 연구와 사례를 참고해 설계한 초안이에요. 같은 대화도 점수가 달라질 수 있으니 숫자 하나보다 연결된 답장과 행동 제안을 살펴보세요. 사람의 매력이나 실제 상대의 속마음을 판정하지 않아요.</p></div>`;
 }
 
@@ -189,6 +203,17 @@ main.addEventListener('click', event => {
   if (name === 'retry') return run(async () => { await action('retry', { turn: Number(target.dataset.turn) }); draft = []; inputText = ''; hintOpen = false; delayMinutes = 0; }, '그 순간으로 돌아가는 중…');
 });
 main.addEventListener('submit', event => {
+  if (event.target.id === 'feedback-form') {
+    event.preventDefault();
+    const data = new FormData(event.target);
+    return run(async () => {
+      await api('/api/feedback', {
+        gameId: game.id, realism: Number(data.get('realism')), helpfulness: Number(data.get('helpfulness')),
+        retryIntent: Number(data.get('retryIntent')), blocked: data.has('blocked'), note: String(data.get('note') ?? ''),
+      });
+      game.feedbackSubmitted = true;
+    }, '테스트 의견 저장 중…');
+  }
   if (event.target.id !== 'composer') return;
   event.preventDefault();
   const messages = [...draft, ...(inputText.trim() ? [inputText.trim()] : [])];

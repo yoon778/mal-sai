@@ -11,8 +11,8 @@ import { buildEvalGame, validateCases } from '../lib/eval.js';
 import { newGame, startGame, readMessages, sendTurn, normalizeEvaluation } from '../lib/game.js';
 import { assessRealismRun, summarizeRealism } from '../lib/realism.js';
 
-async function localServer(t, ai = demoAI) {
-  const server = createServer({ ai });
+async function localServer(t, ai = demoAI, options = {}) {
+  const server = createServer({ ai, ...options });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -23,6 +23,37 @@ async function localServer(t, ai = demoAI) {
   request.base = base;
   return request;
 }
+
+test('finished games accept one feedback entry without storing the transcript', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'sai-feedback-'));
+  const request = await localServer(t, demoAI, { dataDirectory: directory });
+  const created = await request('/api/games', { scenarioId: 'second-date' });
+  const gameId = created.data.id;
+  const path = `/api/games/${gameId}`;
+  const feedback = { gameId, realism: 4, helpfulness: 5, retryIntent: 4, blocked: false, note: '복기 내용이 구체적이었어요' };
+
+  assert.equal((await request('/api/feedback', feedback)).status, 400);
+  await request(`${path}/start`, {});
+  await request(`${path}/read`, { delayMinutes: 0 });
+  for (let turn = 1; turn <= 5; turn++) {
+    await request(`${path}/send`, { messages: [`테스트 답장 ${turn}`], delayMinutes: 0 });
+    await request(`${path}/read`, { delayMinutes: 0 });
+  }
+  await request(`${path}/finish`, {});
+  assert.equal((await request('/api/feedback', { ...feedback, realism: 0 })).status, 400);
+  assert.equal((await request('/api/feedback', feedback)).status, 201);
+  assert.equal((await request(path)).data.feedbackSubmitted, true);
+  assert.equal((await request('/api/feedback', feedback)).status, 409);
+
+  const stored = readFileSync(join(directory, 'feedback.jsonl'), 'utf8').trim();
+  const entry = JSON.parse(stored);
+  assert.equal(entry.scenarioId, 'second-date');
+  assert.equal(entry.helpfulness, 5);
+  assert.equal(entry.note, feedback.note);
+  assert.equal('messages' in entry, false);
+  assert.equal('transcript' in entry, false);
+  assert.doesNotMatch(stored, /테스트 답장/);
+});
 
 test('five replies, separate read/reply delays, hint caching, and replay through HTTP', async t => {
   const request = await localServer(t);

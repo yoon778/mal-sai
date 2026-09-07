@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import { createAI } from './lib/ai.js';
@@ -9,8 +9,9 @@ import { newGame, publicGame, startGame, readMessages, sendTurn, getHint, finish
 const root = fileURLToPath(new URL('.', import.meta.url));
 const assets = new Map([['/', ['index.html', 'text/html']], ['/app.js', ['app.js', 'text/javascript']], ['/style.css', ['style.css', 'text/css']]]);
 
-export function createServer({ ai = createAI({ directory: join(root, '.data') }) } = {}) {
+export function createServer({ ai = createAI({ directory: join(root, '.data') }), dataDirectory = join(root, '.data') } = {}) {
   const games = new Map();
+  const feedbackGames = new Set();
   const server = http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -37,7 +38,7 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
         if (!game) throw new GameError('대화가 만료되었어요. 새로 시작해 주세요.', 404);
         json(publicGame(game)); return;
       }
-      if (req.method !== 'POST' || path !== '/api/games' && !(match && match[2])) throw new GameError('페이지를 찾을 수 없어요.', 404);
+      if (req.method !== 'POST' || path !== '/api/games' && path !== '/api/feedback' && !(match && match[2])) throw new GameError('페이지를 찾을 수 없어요.', 404);
       if (!(req.headers['content-type'] ?? '').startsWith('application/json')) throw new GameError('JSON 요청이 필요해요.', 415);
       const chunks = [];
       let length = 0;
@@ -52,6 +53,19 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
       if (path === '/api/games') {
         if (games.size >= 100) throw new GameError('열린 대화가 너무 많아요. 서버를 다시 시작해 주세요.', 429);
         const game = newGame(input, ai.mode); games.set(game.id, game); json(publicGame(game), 201); return;
+      }
+      if (path === '/api/feedback') {
+        const game = games.get(input.gameId);
+        if (!game || game.stage !== 'finished') throw new GameError('대화를 마친 뒤 평가를 남겨주세요.');
+        if (feedbackGames.has(game.id)) throw new GameError('이미 평가를 남긴 연습이에요.', 409);
+        const ratings = ['realism', 'helpfulness', 'retryIntent'];
+        if (ratings.some(key => !Number.isInteger(input[key]) || input[key] < 1 || input[key] > 5) || typeof input.blocked !== 'boolean' || typeof input.note !== 'string' || input.note.length > 500) throw new GameError('평가 항목을 확인해 주세요.');
+        const entry = { at: new Date().toISOString(), gameId: game.id, scenarioId: game.scenario.id, mode: game.mode, realism: input.realism, helpfulness: input.helpfulness, retryIntent: input.retryIntent, blocked: input.blocked, note: input.note.trim() };
+        await mkdir(dataDirectory, { recursive: true });
+        await appendFile(join(dataDirectory, 'feedback.jsonl'), `${JSON.stringify(entry)}\n`);
+        feedbackGames.add(game.id);
+        game.feedbackSubmitted = true;
+        json({ saved: true }, 201); return;
       }
       const game = games.get(match[1]);
       if (!game) throw new GameError('대화가 만료되었어요. 새로 시작해 주세요.', 404);

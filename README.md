@@ -58,19 +58,23 @@ npm run smoke:ai -- --limit 1
 npm run eval:ai -- --limit 3
 npm run realism:ai
 npm run reliability:ai
+npm run feedback:summary -- --participants 5
 ```
 
 `smoke:ai`는 대표 상황을 실제로 완주하고 대화·힌트·평가의 응답 시간과 토큰·추정 비용을 `.data/smoke-live-*.json`에 기록합니다. 한 판부터 확인한 뒤 최대 세 판까지 실행합니다.
 
+사용자 테스트는 [진행 가이드](./docs/user-test-guide.md)에 따라 3~5명에게 요청합니다. 결과 화면의 1분 설문은 평점과 의견만 로컬 `.data/feedback.jsonl`에 저장하며 대화 내용은 저장하지 않습니다.
+
 ## 현재 상태
 
 - 대화 게임 프로토타입 완성
-- 핵심 동작 테스트 9개
+- 핵심 동작 자동 테스트
 - AI 평가 기준 사례 30개
 - 로컬 API 비용 상한과 사용량 기록 적용
 - 실제 AI 대화·힌트·평가 3상황 완주 검증
 - 실제 AI 상대 10회·답장 50개 현실감 회귀 검증
 - AI 평가 기준 사례 적중률 93.3%·강약 역전 0% 검증
+- 사용자 테스트 설문·로컬 집계 도구 준비
 
 세부 내용: [구현 상태](./docs/implementation-status.md) · [해커톤 로드맵](./docs/hackathon-roadmap.md)
 
