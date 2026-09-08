@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import http from 'node:http';
@@ -27,7 +27,7 @@ async function localServer(t, ai = demoAI, options = {}) {
 }
 
 test('finished games accept one feedback entry without storing the transcript', async t => {
-  const directory = mkdtempSync(join(tmpdir(), 'sai-feedback-'));
+  const directory = join(mkdtempSync(join(tmpdir(), 'sai-feedback-')), 'storage');
   const request = await localServer(t, demoAI, { dataDirectory: directory });
   const created = await request('/api/games', { scenarioId: 'second-date' });
   const gameId = created.data.id;
@@ -43,7 +43,13 @@ test('finished games accept one feedback entry without storing the transcript', 
   }
   await request(`${path}/finish`, {});
   assert.equal((await request('/api/feedback', { ...feedback, realism: 0 })).status, 400);
-  assert.equal((await request('/api/feedback', feedback)).status, 201);
+  writeFileSync(directory, 'simulate unavailable storage');
+  assert.equal((await request('/api/feedback', feedback)).status, 500);
+  assert.equal((await request(path)).data.feedbackSubmitted, false);
+  unlinkSync(directory);
+  const submissions = await Promise.all(Array.from({ length: 8 }, () => request('/api/feedback', feedback)));
+  assert.equal(submissions.filter(response => response.status === 201).length, 1);
+  assert.ok(submissions.every(response => [201, 409].includes(response.status)));
   assert.equal((await request(path)).data.feedbackSubmitted, true);
   assert.equal((await request('/api/feedback', feedback)).status, 409);
 
@@ -134,6 +140,24 @@ test('invalid inputs and external requests cannot mutate a game or read files', 
   assert.equal(foreignHostStatus, 403);
   assert.equal((await request('/.env')).status, 404);
   assert.equal((await request('/api/games', { text: 'x'.repeat(9000) })).status, 413);
+});
+
+test('reshuffling a preview does not exhaust conversation capacity or overwrite a started chat', async t => {
+  const request = await localServer(t);
+  const { data: game } = await request('/api/games', { scenarioId: 'first-contact' });
+  const path = `/api/games/${game.id}`;
+  for (let i = 0; i < 105; i++) {
+    const response = await request(`${path}/shuffle`, { scenarioId: 'new-contact', speech: 'casual' });
+    assert.equal(response.status, 200);
+    assert.equal(response.data.id, game.id);
+    assert.equal(response.data.scenario.id, 'new-contact');
+    assert.equal(response.data.profile.speech, 'casual');
+  }
+  assert.equal((await request('/api/games', {})).status, 201);
+  await request(`${path}/start`, {});
+  const before = (await request(path)).data;
+  assert.equal((await request(`${path}/shuffle`, {})).status, 409);
+  assert.deepEqual((await request(path)).data, before);
 });
 
 test('failed counterpart call preserves transcript, virtual time and turn', async () => {
@@ -339,6 +363,20 @@ test('live adapter sends structured requests and rejects malformed responses wit
   assert.equal('interest' in evaluationData, false);
   assert.ok(evaluationData.backgroundContext.every(message => message.background));
   assert.ok(evaluationData.practiceTranscript.every(message => !message.background));
+});
+
+test('malformed AI objects fail safely without consuming a turn or changing chat state', async () => {
+  const game = newGame({ scenarioId: 'first-contact' }, 'live'); startGame(game);
+  for (const envelope of [null, { choices: [{ finish_reason: 'stop', message: { content: 'null' } }] }]) {
+    const ai = createAI({ key: 'test-only-key', enabled: true, directory: mkdtempSync(join(tmpdir(), 'sai-malformed-')), fetcher: async () => ({ ok: true, json: async () => envelope }) });
+    const before = structuredClone(game);
+    await assert.rejects(sendTurn(game, { messages: ['안녕하세요'], delayMinutes: 0 }, ai), error => error.status === 502);
+    assert.deepEqual(game, before);
+  }
+  await sendTurn(game, { messages: ['잘 들어갔어요?'], delayMinutes: 0 }, demoAI);
+  const raw = await demoAI.evaluate(game);
+  assert.throws(() => normalizeEvaluation({ ...raw, criteria: [null, ...raw.criteria.slice(1)] }, game), error => error.status === 502);
+  assert.throws(() => normalizeEvaluation({ ...raw, improvements: [null] }, game), error => error.status === 502);
 });
 
 test('evaluation baseline contains 30 balanced, source-linked cases', () => {

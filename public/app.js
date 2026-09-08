@@ -233,6 +233,7 @@ main.addEventListener('click', event => {
   const target = event.target.closest('[data-action]');
   if (!target || pending || target.disabled) return;
   const name = target.dataset.action;
+  if (name === 'reconnect') return boot();
   if (name === 'emoji') {
     const textarea = document.querySelector('#message-input');
     if (inputText.length + target.dataset.emoji.length <= 400) { textarea.setRangeText(target.dataset.emoji, textarea.selectionStart, textarea.selectionEnd, 'end'); inputText = textarea.value; textarea.focus(); }
@@ -244,7 +245,14 @@ main.addEventListener('click', event => {
   }
   if (name === 'remove-draft') { draft.splice(Number(target.dataset.index), 1); render(); return; }
   if (name === 'shuffle' || name === 'home') return run(async () => {
-    game = await api('/api/games', settings); draft = []; inputText = ''; delayMinutes = 0; hintOpen = false; topicOpen = false;
+    if (name === 'shuffle' && game.stage === 'preview') {
+      try { game = await api(`/api/games/${game.id}/shuffle`, settings); }
+      catch (error) {
+        if (error.status !== 404) throw error;
+        game = await api('/api/games', settings);
+      }
+    } else game = await api('/api/games', settings);
+    draft = []; inputText = ''; delayMinutes = 0; hintOpen = false; topicOpen = false;
   }, '다음 상황 준비 중…');
   if (name === 'start') return run(() => action('start'), '대화 시작 중…');
   if (name === 'read') return run(() => action('read', { delayMinutes: Number(target.dataset.delay) }), '메시지 읽는 중…');
@@ -283,6 +291,11 @@ main.addEventListener('keydown', event => {
 });
 
 async function boot() {
+  if (pending) return;
+  pending = true;
+  notice.hidden = true;
+  main.setAttribute('aria-busy', 'true');
+  main.innerHTML = '<div class="loading">대화 준비 중…</div>';
   try {
     config = await api('/api/config');
     document.querySelector('#mode').textContent = config.mode === 'demo' ? '체험 모드' : 'AI 연결됨';
@@ -290,7 +303,10 @@ async function boot() {
     try { id = sessionStorage.getItem('sai-game'); } catch { /* Storage is optional. */ }
     if (id) { try { game = await api(`/api/games/${id}`); } catch (error) { if (error.status !== 404) throw error; } }
     if (!game) game = await api('/api/games', settings);
-    storeGame(); render();
-  } catch (error) { main.innerHTML = '<div class="loading"><h1>연결을 확인해 주세요</h1><p>서버를 실행한 뒤 페이지를 새로고침해 주세요.</p></div>'; showError(error); }
+    storeGame(); pending = false; render();
+  } catch (error) {
+    main.innerHTML = `<div class="loading"><h1>연결을 확인해 주세요</h1><p>잠시 연결하지 못했어요. 다시 시도해 주세요.</p>${button('reconnect', '다시 연결하기', 'primary')}</div>`;
+    showError(error);
+  } finally { pending = false; main.setAttribute('aria-busy', 'false'); }
 }
 boot();

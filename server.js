@@ -14,7 +14,6 @@ assets.set('/designs.css', ['designs.css', 'text/css']);
 
 export function createServer({ ai = createAI({ directory: join(root, '.data') }), dataDirectory = join(root, '.data') } = {}) {
   const games = new Map();
-  const feedbackGames = new Set();
   const server = http.createServer(async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -35,7 +34,7 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
       }
       if (req.method === 'GET' && path === '/api/config') { json({ mode: ai.mode, scenarios: scenarios.map(({ id, title }) => ({ id, title })) }); return; }
       for (const [id, game] of games) if (!game.busy && Date.now() - game.createdAt > 6 * 3600_000) games.delete(id);
-      const match = path.match(/^\/api\/games\/([a-f\d-]{36})(?:\/(start|read|send|wait|wait-start|hint|topic|finish|retry))?$/);
+      const match = path.match(/^\/api\/games\/([a-f\d-]{36})(?:\/(shuffle|start|read|send|wait|wait-start|hint|topic|finish|retry))?$/);
       if (req.method === 'GET' && match && !match[2]) {
         const game = games.get(match[1]);
         if (!game) throw new GameError('대화가 만료되었어요. 새로 시작해 주세요.', 404);
@@ -60,15 +59,18 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
       if (path === '/api/feedback') {
         const game = games.get(input.gameId);
         if (!game || game.stage !== 'finished') throw new GameError('대화를 마친 뒤 평가를 남겨주세요.');
-        if (feedbackGames.has(game.id)) throw new GameError('이미 평가를 남긴 연습이에요.', 409);
+        if (game.feedbackSubmitted) throw new GameError('이미 평가를 남긴 연습이에요.', 409);
+        if (game.busy) throw new GameError('직전 요청을 처리하고 있어요.', 409);
         const ratings = ['realism', 'helpfulness', 'retryIntent'];
         if (ratings.some(key => !Number.isInteger(input[key]) || input[key] < 1 || input[key] > 5) || typeof input.blocked !== 'boolean' || typeof input.note !== 'string' || input.note.length > 500) throw new GameError('평가 항목을 확인해 주세요.');
         const entry = { at: new Date().toISOString(), gameId: game.id, scenarioId: game.scenario.id, mode: game.mode, realism: input.realism, helpfulness: input.helpfulness, retryIntent: input.retryIntent, blocked: input.blocked, note: input.note.trim() };
-        await mkdir(dataDirectory, { recursive: true });
-        await appendFile(join(dataDirectory, 'feedback.jsonl'), `${JSON.stringify(entry)}\n`);
-        feedbackGames.add(game.id);
-        game.feedbackSubmitted = true;
-        json({ saved: true }, 201); return;
+        game.busy = true;
+        try {
+          await mkdir(dataDirectory, { recursive: true });
+          await appendFile(join(dataDirectory, 'feedback.jsonl'), `${JSON.stringify(entry)}\n`);
+          game.feedbackSubmitted = true;
+          json({ saved: true }, 201); return;
+        } finally { game.busy = false; }
       }
       const game = games.get(match[1]);
       if (!game) throw new GameError('대화가 만료되었어요. 새로 시작해 주세요.', 404);
@@ -76,6 +78,10 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
       game.busy = true;
       try {
         switch (match[2]) {
+          case 'shuffle':
+            if (game.stage !== 'preview') throw new GameError('시작한 대화는 다시 뽑을 수 없어요. 새 연습을 선택해 주세요.', 409);
+            Object.assign(game, newGame(input, ai.mode), { id: game.id, busy: true });
+            break;
           case 'start': startGame(game); break;
           case 'wait-start': waitToStart(game, input.delayMinutes); break;
           case 'read': readMessages(game, input.delayMinutes); break;
