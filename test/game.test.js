@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { Store } from '../lib/store.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import http from 'node:http';
@@ -19,7 +21,7 @@ async function localServer(t, ai = demoAI, options = {}) {
   t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
   const base = `http://127.0.0.1:${server.address().port}`;
   const request = async (path, data, extra = {}) => {
-    const response = await fetch(base + path, { ...(data === undefined ? {} : { method: 'POST', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json' } }), ...extra });
+    const response = await fetch(base + path, { ...(data === undefined ? {} : { method: 'POST', body: JSON.stringify(data) }), ...extra, headers: { Authorization: 'Bearer test-user-00000000000000000000', ...(data === undefined ? {} : { 'Content-Type': 'application/json' }), ...extra.headers } });
     return { status: response.status, data: await response.json() };
   };
   request.base = base;
@@ -27,8 +29,10 @@ async function localServer(t, ai = demoAI, options = {}) {
 }
 
 test('finished games accept one feedback entry without storing the transcript', async t => {
-  const directory = join(mkdtempSync(join(tmpdir(), 'sai-feedback-')), 'storage');
-  const request = await localServer(t, demoAI, { dataDirectory: directory });
+  const store = new Store();
+  const save = store.save.bind(store);
+  const owner = createHash('sha256').update('local:test-user-00000000000000000000').digest('hex');
+  const request = await localServer(t, demoAI, { store });
   const created = await request('/api/games', { scenarioId: 'second-date' });
   const gameId = created.data.id;
   const path = `/api/games/${gameId}`;
@@ -43,18 +47,20 @@ test('finished games accept one feedback entry without storing the transcript', 
   }
   await request(`${path}/finish`, {});
   assert.equal((await request('/api/feedback', { ...feedback, realism: 0 })).status, 400);
-  writeFileSync(directory, 'simulate unavailable storage');
+  store.save = () => { throw new Error('simulate unavailable storage'); };
   assert.equal((await request('/api/feedback', feedback)).status, 500);
   assert.equal((await request(path)).data.feedbackSubmitted, false);
-  unlinkSync(directory);
+  store.save = save;
   const submissions = await Promise.all(Array.from({ length: 8 }, () => request('/api/feedback', feedback)));
   assert.equal(submissions.filter(response => response.status === 201).length, 1);
   assert.ok(submissions.every(response => [201, 409].includes(response.status)));
   assert.equal((await request(path)).data.feedbackSubmitted, true);
   assert.equal((await request('/api/feedback', feedback)).status, 409);
 
-  const stored = readFileSync(join(directory, 'feedback.jsonl'), 'utf8').trim();
-  const entry = JSON.parse(stored);
+  const entries = store.list(owner, 'feedback');
+  assert.equal(entries.length, 1);
+  const entry = entries[0];
+  const stored = JSON.stringify(entry);
   assert.equal(entry.scenarioId, 'second-date');
   assert.equal(entry.helpfulness, 5);
   assert.equal(entry.note, feedback.note);
@@ -335,7 +341,7 @@ test('live adapter sends structured requests and rejects malformed responses wit
   assert.match(captured.messages[1].content, /speechStyle/);
   const usage = readFileSync(join(directory, 'usage.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
   assert.deepEqual(usage.map(item => item.action), ['partner_reply', 'topic_help']);
-  assert.ok(usage.every(item => item.gameId === game.id));
+  assert.ok(usage.every(item => !('gameId' in item)), 'operational cost logs must not identify a practice record');
   assert.equal(usage[0].model, 'gpt-5.4-mini-2026-03-17');
   assert.equal(usage[0].estimatedUsd, 0.0008625);
   assert.equal(usage[1].estimatedUsd, 0.0008625);

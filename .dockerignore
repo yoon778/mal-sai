@@ -1,0 +1,10 @@
+.git
+.env*
+.data
+node_modules
+dist
+*.ait
+*.ait.manifest.json
+*.pem
+*.key
+*.p12

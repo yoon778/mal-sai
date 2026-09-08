@@ -1,3 +1,4 @@
+import { apiOrigin, authorization, initializePlatform, savedGame, rememberGame, forgetGame, closeApp } from './platform.js';
 const main = document.querySelector('#main');
 const notice = document.querySelector('#notice');
 let config, game, pending = false, draft = [], inputText = '', delayMinutes = 0, hintOpen = false, topicOpen = false;
@@ -13,14 +14,14 @@ const clock = minutes => {
 };
 
 async function api(path, body) {
-  const response = await fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const response = await fetch(apiOrigin + path, { headers: { ...authorization(), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }) });
   const result = await response.json();
   if (!response.ok) { const error = new Error(result.error ?? '요청을 처리하지 못했어요.'); error.status = response.status; throw error; }
   return result;
 }
 
 function showError(error) { notice.textContent = error.message; notice.hidden = false; }
-function storeGame() { try { sessionStorage.setItem('sai-game', game.id); } catch { /* Storage is optional. */ } }
+async function storeGame() { try { await rememberGame(game.id); } catch { showError(new Error('이 기기에 마지막 연습을 기억하지 못했어요 기록 메뉴에서 다시 열 수 있어요')); } }
 
 function select(name, label, options) {
   return `<label class="field">${label}<select name="${name}" ${pending ? 'disabled' : ''}>${options.map(([value, text]) => `<option value="${value}" ${settings[name] === value ? 'selected' : ''}>${text}</option>`).join('')}</select></label>`;
@@ -190,6 +191,7 @@ function render() {
   else if (game.stage === 'finished') renderReview();
   else renderChat();
   main.insertAdjacentHTML('afterbegin', questPath());
+  main.insertAdjacentHTML('afterbegin', `<nav class="practice-tools" aria-label="기록과 도움말">${button('history', '내 연습 기록', 'text-button')}${button('privacy', '데이터 안내', 'text-button')}${game.stage !== 'preview' ? button('report', '답장 신고', 'text-button') : ''}</nav>`);
   main.setAttribute('aria-busy', String(pending));
   if (pending) main.querySelectorAll('button, input, select, textarea, summary').forEach(el => { el.disabled = true; });
 }
@@ -206,7 +208,7 @@ async function run(task, status = '처리 중…') {
   main.setAttribute('aria-busy', 'true');
   const busy = document.createElement('div'); busy.className = 'busy-status'; busy.role = 'status'; busy.textContent = status; main.append(busy);
   try {
-    await task(); storeGame(); pending = false; render();
+    await task(); await storeGame(); pending = false; render();
     let focus;
     if (previousStage !== game.stage) {
       focus = main.querySelector('h1');
@@ -234,6 +236,9 @@ main.addEventListener('click', event => {
   if (!target || pending || target.disabled) return;
   const name = target.dataset.action;
   if (name === 'reconnect') return boot();
+  if (name === 'history') return showHistory();
+  if (name === 'privacy') return showPrivacy();
+  if (name === 'report') return showReport();
   if (name === 'emoji') {
     const textarea = document.querySelector('#message-input');
     if (inputText.length + target.dataset.emoji.length <= 400) { textarea.setRangeText(target.dataset.emoji, textarea.selectionStart, textarea.selectionEnd, 'end'); inputText = textarea.value; textarea.focus(); }
@@ -297,16 +302,84 @@ async function boot() {
   main.setAttribute('aria-busy', 'true');
   main.innerHTML = '<div class="loading">대화 준비 중…</div>';
   try {
+    await initializePlatform(() => {
+      const openDialog = document.querySelector('dialog[open]');
+      if (openDialog) return openDialog.close();
+      if (pending) return;
+      if (game?.stage === 'preview') closeApp().catch(showError);
+      else {
+        const element = dialog('연습을 잠시 나갈까요?', '<p>보낸 대화는 내 연습 기록에서 다시 열 수 있어요 작성 중인 답장은 사라져요</p><button class="primary" id="return-home">처음으로</button>');
+        element.querySelector('#return-home').onclick = async () => {
+          element.close();
+          await run(async () => { game = await api('/api/games', settings); draft = []; inputText = ''; hintOpen = false; topicOpen = false; });
+        };
+      }
+    });
     config = await api('/api/config');
     document.querySelector('#mode').textContent = config.mode === 'demo' ? '체험 모드' : 'AI 연결됨';
     let id;
-    try { id = sessionStorage.getItem('sai-game'); } catch { /* Storage is optional. */ }
-    if (id) { try { game = await api(`/api/games/${id}`); } catch (error) { if (error.status !== 404) throw error; } }
+    try { id = await savedGame(); } catch { /* History remains available from the server. */ }
+    if (id) { try { game = await api(`/api/games/${id}`); } catch (error) { if (error.status !== 404) throw error; game = null; } }
+    if (!game) {
+      const history = await api('/api/history');
+      if (history.length) game = await api(`/api/games/${history[0].id}`);
+    }
     if (!game) game = await api('/api/games', settings);
-    storeGame(); pending = false; render();
+    await storeGame(); pending = false; render();
   } catch (error) {
     main.innerHTML = `<div class="loading"><h1>연결을 확인해 주세요</h1><p>잠시 연결하지 못했어요. 다시 시도해 주세요.</p>${button('reconnect', '다시 연결하기', 'primary')}</div>`;
     showError(error);
   } finally { pending = false; main.setAttribute('aria-busy', 'false'); }
+}
+function dialog(title, content) {
+  document.querySelector('dialog')?.remove();
+  const element = document.createElement('dialog');
+  element.className = 'account-dialog';
+  element.setAttribute('aria-labelledby', 'dialog-title');
+  element.innerHTML = `<h2 id="dialog-title">${title}</h2>${content}<form method="dialog"><button class="secondary">닫기</button></form>`;
+  document.body.append(element); element.showModal();
+  return element;
+}
+async function showHistory() {
+  if (pending) return;
+  pending = true;
+  try {
+    const records = await api('/api/history');
+    const element = dialog('내 연습 기록', `<p>최근 30일 기록 · 최대 100개</p><div class="history-list">${records.map(item => `<button class="secondary" data-game="${escape(item.id)}">${escape(item.title)}<small>${new Date(item.createdAt).toLocaleDateString('ko-KR')} · ${item.stage === 'finished' ? '복기 완료' : `${item.turn}/5 답장`}</small></button>`).join('') || '<p>저장된 연습이 없어요</p>'}</div><button class="text-button" id="delete-records">전체 기록 삭제</button>`);
+    element.addEventListener('click', async event => {
+      const id = event.target.closest('[data-game]')?.dataset.game;
+      if (id) { element.close(); await run(async () => { game = await api(`/api/games/${id}`); draft = []; inputText = ''; hintOpen = false; topicOpen = false; }); }
+      if (event.target.id === 'delete-records') {
+        element.close();
+        const confirmation = dialog('기록을 모두 삭제할까요?', '<p>대화·평가·의견·신고가 삭제되며 되돌릴 수 없어요 이용 횟수는 초기화되지 않아요</p><button class="primary" id="confirm-delete">전체 삭제</button>');
+        confirmation.querySelector('#confirm-delete').onclick = async () => {
+          if (pending) return;
+          pending = true;
+          confirmation.querySelector('#confirm-delete').disabled = true;
+          try { await api('/api/account/delete', {}); await forgetGame(); game = null; draft = []; inputText = ''; confirmation.close(); pending = false; await boot(); }
+          catch (error) { showError(error); confirmation.querySelector('#confirm-delete').disabled = false; }
+          finally { pending = false; }
+        };
+      }
+    });
+  } catch (error) { showError(error); }
+  finally { pending = false; }
+}
+function showPrivacy() {
+  dialog('대화와 기록 안내', '<p>입력한 대화와 연습 맥락은 OpenAI로 전송되어 답장·평가·안전 확인에 사용돼요 실제 사람의 개인정보는 입력하지 마세요</p><p>서버에는 대화·진행 상황·평가·의견·신고를 암호화해 30일간 저장해요 내 연습 기록에서 전체 삭제할 수 있어요 이용 횟수는 최대 3일간 유지돼요</p><p>현재 출시 준비 단계예요 운영자 정보와 정식 개인정보 처리방침 확정 후 공개돼요</p>');
+}
+function showReport() {
+  const messages = game.messages.filter(m => m.role === 'partner' && !m.background && m.readAt !== null);
+  const element = dialog('답장 신고', `<p>선택한 AI 답장과 신고 이유만 암호화해 저장해요</p><form id="report-form"><label>신고할 답장<select name="messageId" required>${messages.map(m => `<option value="${escape(m.id)}">${escape(m.text.slice(0, 60))}</option>`).join('')}</select></label><label>이유<select name="reason"><option value="unsafe">위험하거나 부적절한 내용</option><option value="uncomfortable">불쾌한 표현</option><option value="incorrect">잘못된 안내</option></select></label><button class="primary" ${messages.length ? '' : 'disabled'}>신고 접수</button></form>`);
+  element.querySelector('#report-form').onsubmit = async event => {
+    event.preventDefault();
+    if (pending) return;
+    pending = true;
+    const submit = event.target.querySelector('button'); submit.disabled = true;
+    const data = new FormData(event.target);
+    try { await api('/api/reports', { gameId: game.id, messageId: data.get('messageId'), reason: data.get('reason') }); element.close(); notice.textContent = '신고가 접수됐어요'; notice.hidden = false; }
+    catch (error) { showError(error); submit.disabled = false; }
+    finally { pending = false; }
+  };
 }
 boot();

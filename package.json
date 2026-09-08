@@ -4,9 +4,14 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
+    "build:toss": "node --env-file-if-exists=.env.toss scripts/build-toss.js",
+    "preflight:toss": "node --env-file-if-exists=.env.toss scripts/toss-preflight.js",
+    "ai:pause": "node --env-file-if-exists=.env scripts/operations.js pause",
+    "ai:resume": "node --env-file-if-exists=.env scripts/operations.js resume",
+    "reports:list": "node --env-file-if-exists=.env scripts/operations.js reports",
     "start": "node --env-file-if-exists=.env server.js",
     "check": "node --check server.js && node --check lib/game.js && node --check lib/ai.js && node --check lib/eval.js && node --check lib/realism.js && node --check public/app.js && node --check scripts/evaluate.js && node --check scripts/smoke-live.js && node --check scripts/evaluate-realism.js && node --check scripts/evaluate-reliability.js && node --check scripts/summarize-feedback.js && node --check lib/models.js && node --check lib/chat-prompt.js && node --check public/designs.js && node --check scripts/compare-chat.js && node --check lib/practice-scenarios.js && node --check lib/coaching-principles.js && node --check lib/spelling.js && node --check scripts/check-coaching.js",
     "test": "node --test",
@@ -15,8 +20,12 @@
     "smoke:ai": "node --env-file-if-exists=.env scripts/smoke-live.js",
     "realism:ai": "node --env-file-if-exists=.env scripts/evaluate-realism.js",
     "reliability:ai": "node --env-file-if-exists=.env scripts/evaluate-reliability.js",
-    "feedback:summary": "node scripts/summarize-feedback.js",
+    "feedback:summary": "node --env-file-if-exists=.env scripts/summarize-feedback.js",
     "compare:chat": "node --env-file-if-exists=.env scripts/compare-chat.js",
     "check:coaching": "node --env-file-if-exists=.env scripts/check-coaching.js --live"
+  },
+  "devDependencies": {
+    "@apps-in-toss/web-framework": "3.3.0",
+    "vite": "8.2.2"
   }
 }

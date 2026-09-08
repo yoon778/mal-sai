@@ -1,8 +1,12 @@
 import http from 'node:http';
-import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
-import { createAI } from './lib/ai.js';
+import { createAI, demoAI } from './lib/ai.js';
+import { Store } from './lib/store.js';
+import { createAccess, deployment } from './lib/access.js';
+import { createSafety, safeAI } from './lib/safety.js';
 import { scenarios } from './lib/scenarios.js';
 import { newGame, publicGame, startGame, readMessages, sendTurn, waitForReply, waitToStart, getHint, getTopicHelp, finishGame, retryTurn, GameError } from './lib/game.js';
 
@@ -11,36 +15,50 @@ const assets = new Map([['/', ['index.html', 'text/html']], ['/app.js', ['app.js
 assets.set('/designs', ['designs.html', 'text/html']);
 assets.set('/designs.js', ['designs.js', 'text/javascript']);
 assets.set('/designs.css', ['designs.css', 'text/css']);
+assets.set('/platform.js', ['platform.js', 'text/javascript']);
+assets.set('/privacy', ['privacy.html', 'text/html']);
 
-export function createServer({ ai = createAI({ directory: join(root, '.data') }), dataDirectory = join(root, '.data') } = {}) {
-  const games = new Map();
+export function createServer({ ai = createAI({ directory: join(root, '.data') }), store = new Store(), access = createAccess(), safety = createSafety({ stopFile: join(root, '.data', 'ai-paused') }), dailyLimit = 100 } = {}) {
+  if (!Number.isInteger(dailyLimit) || dailyLimit < 1 || dailyLimit > 1000) throw new Error('Invalid daily AI limit');
+  const locks = new Set();
+  const protectedAI = ai.mode === 'live' ? safeAI(ai, safety) : ai;
+  const cleanup = setInterval(() => { try { store.prune(); } catch (error) { console.error('Retention cleanup failed', error.code ?? 'storage_error'); } }, 3600_000);
+  cleanup.unref();
+  const ownedGame = (owner, id) => {
+    if (typeof id !== 'string') throw new GameError('대화 ID를 확인해 주세요');
+    const game = store.get(owner, id);
+    if (!game) throw new GameError('대화를 찾을 수 없어요 새로 시작해 주세요', 404);
+    return game;
+  };
   const server = http.createServer(async (req, res) => {
+    let lockedOwner;
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     const json = (data, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(data)); };
     try {
-      // Local prototype. Reject foreign origins/hosts, including DNS rebinding.
+      access.check(req, res);
       const host = req.headers.host ?? '';
-      if (!/^(localhost|127\.0\.0\.1):\d+$/.test(host)) throw new GameError('허용되지 않은 호스트예요.', 403);
-      if (req.headers.origin && req.headers.origin !== `http://${host}`) throw new GameError('같은 사이트에서만 요청할 수 있어요.', 403);
-      if (req.headers['sec-fetch-site'] === 'cross-site') throw new GameError('외부 사이트 요청은 허용하지 않아요.', 403);
       const path = new URL(req.url, `http://${host}`).pathname;
+      if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
       if (req.method === 'GET' && assets.has(path)) {
         const [file, type] = assets.get(path);
         const body = await readFile(join(root, 'public', file));
         res.writeHead(200, { 'Content-Type': `${type}; charset=utf-8` }); res.end(body); return;
       }
       if (req.method === 'GET' && path === '/api/config') { json({ mode: ai.mode, scenarios: scenarios.map(({ id, title }) => ({ id, title })) }); return; }
-      for (const [id, game] of games) if (!game.busy && Date.now() - game.createdAt > 6 * 3600_000) games.delete(id);
+      if (!path.startsWith('/api/')) throw new GameError('페이지를 찾을 수 없어요', 404);
+      const owner = await access.owner(req);
+      if (req.method === 'GET' && path === '/api/history') {
+        json(store.list(owner).map(g => ({ id: g.id, title: g.scenario.title, stage: g.stage, turn: g.turn, createdAt: g.createdAt }))); return;
+      }
       const match = path.match(/^\/api\/games\/([a-f\d-]{36})(?:\/(shuffle|start|read|send|wait|wait-start|hint|topic|finish|retry))?$/);
       if (req.method === 'GET' && match && !match[2]) {
-        const game = games.get(match[1]);
-        if (!game) throw new GameError('대화가 만료되었어요. 새로 시작해 주세요.', 404);
+        const game = ownedGame(owner, match[1]);
         json(publicGame(game)); return;
       }
-      if (req.method !== 'POST' || path !== '/api/games' && path !== '/api/feedback' && !(match && match[2])) throw new GameError('페이지를 찾을 수 없어요.', 404);
+      if (req.method !== 'POST' || !['/api/games', '/api/feedback', '/api/reports', '/api/account/delete'].includes(path) && !(match && match[2])) throw new GameError('페이지를 찾을 수 없어요.', 404);
       if (!(req.headers['content-type'] ?? '').startsWith('application/json')) throw new GameError('JSON 요청이 필요해요.', 415);
       const chunks = [];
       let length = 0;
@@ -52,54 +70,68 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
       let input;
       try { input = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new GameError('요청 형식이 올바르지 않아요.'); }
       if (!input || typeof input !== 'object' || Array.isArray(input)) throw new GameError('요청 형식이 올바르지 않아요.');
+      if (locks.has(owner)) throw new GameError('직전 요청을 처리하고 있어요', 409);
+      locks.add(owner); lockedOwner = owner;
+      if (path === '/api/account/delete') { store.deleteOwner(owner); json({ deleted: true }); return; }
       if (path === '/api/games') {
-        if (games.size >= 100) throw new GameError('열린 대화가 너무 많아요. 서버를 다시 시작해 주세요.', 429);
-        const game = newGame(input, ai.mode); games.set(game.id, game); json(publicGame(game), 201); return;
+        if (store.list(owner).length >= 100) throw new GameError('저장된 연습이 100개예요 기록을 삭제한 뒤 새로 시작해 주세요', 429);
+        const game = newGame(input, ai.mode); store.save(owner, 'game', game); json(publicGame(game), 201); return;
+      }
+      if (path === '/api/reports') {
+        const game = ownedGame(owner, input.gameId);
+        const message = game.messages.find(m => m.id === input.messageId && m.role === 'partner' && m.readAt !== null);
+        if (!message || !['unsafe', 'uncomfortable', 'incorrect'].includes(input.reason)) throw new GameError('신고할 답장과 이유를 확인해 주세요');
+        if (store.list(owner, 'report').length >= 30) throw new GameError('신고 접수 한도에 도달했어요', 429);
+        store.save(owner, 'report', { id: randomUUID(), gameId: game.id, messageId: message.id, text: message.text, reason: input.reason, at: Date.now() });
+        json({ saved: true }, 201); return;
       }
       if (path === '/api/feedback') {
-        const game = games.get(input.gameId);
+        if (typeof input.gameId !== 'string') throw new GameError('대화 ID를 확인해 주세요');
+        const game = store.get(owner, input.gameId);
         if (!game || game.stage !== 'finished') throw new GameError('대화를 마친 뒤 평가를 남겨주세요.');
         if (game.feedbackSubmitted) throw new GameError('이미 평가를 남긴 연습이에요.', 409);
         if (game.busy) throw new GameError('직전 요청을 처리하고 있어요.', 409);
         const ratings = ['realism', 'helpfulness', 'retryIntent'];
         if (ratings.some(key => !Number.isInteger(input[key]) || input[key] < 1 || input[key] > 5) || typeof input.blocked !== 'boolean' || typeof input.note !== 'string' || input.note.length > 500) throw new GameError('평가 항목을 확인해 주세요.');
-        const entry = { at: new Date().toISOString(), gameId: game.id, scenarioId: game.scenario.id, mode: game.mode, realism: input.realism, helpfulness: input.helpfulness, retryIntent: input.retryIntent, blocked: input.blocked, note: input.note.trim() };
-        game.busy = true;
-        try {
-          await mkdir(dataDirectory, { recursive: true });
-          await appendFile(join(dataDirectory, 'feedback.jsonl'), `${JSON.stringify(entry)}\n`);
+        const entry = { id: randomUUID(), at: new Date().toISOString(), gameId: game.id, scenarioId: game.scenario.id, mode: game.mode, realism: input.realism, helpfulness: input.helpfulness, retryIntent: input.retryIntent, blocked: input.blocked, note: input.note.trim() };
+        store.transaction(() => {
+          store.save(owner, 'feedback', entry);
           game.feedbackSubmitted = true;
-          json({ saved: true }, 201); return;
-        } finally { game.busy = false; }
+          store.save(owner, 'game', game);
+        });
+        json({ saved: true }, 201); return;
       }
-      const game = games.get(match[1]);
-      if (!game) throw new GameError('대화가 만료되었어요. 새로 시작해 주세요.', 404);
-      if (game.busy) throw new GameError('직전 요청을 처리하고 있어요.', 409);
-      game.busy = true;
-      try {
+      const game = ownedGame(owner, match[1]);
+      const gameAI = game.mode === 'demo' && ai.mode === 'live' ? demoAI : protectedAI;
+      if (game.mode === 'live' && ['send', 'hint', 'topic', 'finish'].includes(match[2])) {
+        if (ai.mode !== 'live') throw new GameError('AI 연결이 꺼져 있어요 연결이 복구된 뒤 이 연습을 이어갈 수 있어요', 503);
+        store.consume(owner, dailyLimit);
+        await safety(match[2] === 'send' ? JSON.stringify(input.messages ?? '') : game.messages.map(m => m.text).join('\n'));
+      }
         switch (match[2]) {
           case 'shuffle':
             if (game.stage !== 'preview') throw new GameError('시작한 대화는 다시 뽑을 수 없어요. 새 연습을 선택해 주세요.', 409);
-            Object.assign(game, newGame(input, ai.mode), { id: game.id, busy: true });
+            Object.assign(game, newGame(input, ai.mode), { id: game.id });
             break;
           case 'start': startGame(game); break;
           case 'wait-start': waitToStart(game, input.delayMinutes); break;
           case 'read': readMessages(game, input.delayMinutes); break;
-          case 'send': await sendTurn(game, input, ai); break;
+          case 'send': await sendTurn(game, input, gameAI); break;
           case 'wait': waitForReply(game, input.delayMinutes); break;
-          case 'hint': await getHint(game, ai); break;
-          case 'topic': await getTopicHelp(game, ai); break;
-          case 'finish': await finishGame(game, ai); break;
+          case 'hint': await getHint(game, gameAI); break;
+          case 'topic': await getTopicHelp(game, gameAI); break;
+          case 'finish': await finishGame(game, gameAI); break;
           case 'retry': retryTurn(game, input.turn); break;
         }
+        store.save(owner, 'game', game);
         json(publicGame(game));
-      } finally { game.busy = false; }
     } catch (error) {
       if (!res.headersSent) json({ error: error instanceof GameError ? error.message : '서버 처리 중 문제가 생겼어요.' }, error.status ?? 500);
       else res.end();
       if (!(error instanceof GameError)) console.error(error.name, error.code ?? 'internal_error');
-    }
+    } finally { if (lockedOwner) locks.delete(lockedOwner); }
   });
+  server.on('close', () => { clearInterval(cleanup); access.close(); store.close(); });
   server.requestTimeout = 60_000;
   server.headersTimeout = 10_000;
   return server;
@@ -107,5 +139,8 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const port = Number(process.env.PORT ?? 3000);
-  createServer().listen(port, '127.0.0.1', () => console.log(`말사이 · http://localhost:${port}`));
+  const settings = deployment();
+  const directory = process.env.DATA_DIRECTORY ?? join(root, '.data');
+  createServer({ ai: createAI({ directory }), store: new Store({ directory, key: process.env.STORAGE_KEY }), access: createAccess(settings), safety: createSafety({ stopFile: join(directory, 'ai-paused') }), dailyLimit: Number(process.env.AI_DAILY_REQUEST_LIMIT ?? 100) })
+    .listen(port, settings.mode === 'toss' ? '0.0.0.0' : '127.0.0.1', () => console.log(`말사이 · ${settings.mode} · port ${port}`));
 }

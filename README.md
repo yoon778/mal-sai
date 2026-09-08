@@ -49,7 +49,7 @@
 
 ## 실행
 
-Node.js 22 이상 필요. 별도 패키지 설치 없음
+Node.js 24 이상 필요. 웹 서버는 Node 기본 모듈만 사용하며 토스 패키지 빌드는 `npm ci`로 도구를 설치합니다
 
 ```bash
 npm start
@@ -77,7 +77,7 @@ npm run feedback:summary -- --participants 5
 
 `smoke:ai`는 대표 상황을 실제로 완주하고 대화·힌트·평가의 응답 시간과 토큰·추정 비용을 `.data/smoke-live-*.json`에 기록합니다. 한 판부터 확인한 뒤 최대 세 판까지 실행합니다.
 
-사용자 테스트는 [진행 가이드](./docs/user-test-guide.md)에 따라 3~5명에게 요청합니다. 결과 화면의 1분 설문은 평점과 의견만 로컬 `.data/feedback.jsonl`에 저장하며 대화 내용은 저장하지 않습니다.
+사용자 테스트는 [진행 가이드](./docs/user-test-guide.md)에 따라 3~5명에게 요청합니다. 대화·진행 상황·평가와 별도의 설문·신고를 `.data/practice.sqlite`에 암호화해 저장합니다. 설문 레코드에는 대화 전문을 복사하지 않습니다. 이전 JSONL 의견 파일은 자동으로 이관하지 않으며 기존 DB가 없을 때 집계 도구로 읽을 수 있습니다.
 
 ## 현재 상태
 
@@ -93,4 +93,6 @@ npm run feedback:summary -- --participants 5
 
 세부 내용: [구현 상태](./docs/implementation-status.md) · [해커톤 로드맵](./docs/hackathon-roadmap.md)
 
-> 현재 localhost 전용. 진행 기록은 서버 재시작 또는 6시간 경과 시 만료됨
+로컬 모드는 localhost 전용입니다. 기록은 재시작 후 복원하며 마지막 저장 후 30일간 보관합니다. 브라우저 식별값을 지우면 로컬 기록에 다시 접근할 수 없습니다.
+
+토스 전환 구현·빌드·남은 출시 절차: [토스 출시 준비](./docs/toss-release.md)

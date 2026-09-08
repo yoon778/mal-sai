@@ -4,3 +4,10 @@
 .data/
 node_modules/
 *.log
+dist/
+*.ait
+*.ait.manifest.json
+*.pem
+*.key
+*.p12
+!.env.toss.example

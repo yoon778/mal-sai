@@ -28,7 +28,7 @@
 
 ## 결과 확인
 
-피드백은 `.data/feedback.jsonl`에 저장됨. 대화 내용은 저장하지 않음
+피드백은 `.data/practice.sqlite`에 암호화 저장합니다. 설문 레코드에는 대화 전문을 복사하지 않으며, 대화·평가는 별도의 연습 기록으로 30일간 보관합니다. 내 연습 기록에서 전체 삭제할 수 있습니다.
 
 ```bash
 npm run feedback:summary -- --participants 5

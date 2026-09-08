@@ -83,3 +83,10 @@ button:focus-visible,a:focus-visible,select:focus-visible,textarea:focus-visible
 @media(prefers-reduced-motion:reduce){button{transition:none}}
 
 @media(max-width:700px){.composer-bottom>div:last-child{margin-left:auto}.emoji{min-width:23px}.goal strong{word-break:keep-all}.play-sidebar>.mode-note{margin-bottom:14px}.play-sidebar .goal{margin-top:8px}.atmosphere{margin-top:10px}}
+:root{--safe-top:0px;--safe-bottom:0px;--safe-left:0px;--safe-right:0px}
+body{padding-top:var(--safe-top);padding-bottom:var(--safe-bottom);padding-left:var(--safe-left);padding-right:var(--safe-right)}
+.practice-tools{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.account-dialog{border:1px solid #e5dacc;border-radius:20px;padding:24px;background:#fffaf0;color:#332c29;width:min(480px,calc(100vw - 32px));max-height:80dvh;overflow:auto}
+.account-dialog::backdrop{background:#251d1970}
+.account-dialog p{line-height:1.7}.account-dialog form{margin-top:16px}.account-dialog label{display:grid;gap:8px;margin-bottom:16px}.account-dialog select{max-width:100%;padding:10px}.history-list{display:grid;gap:8px}.history-list button{text-align:left;white-space:normal}.history-list small{display:block;margin-top:6px}
+[data-platform="toss"] .header-caption{display:none}
