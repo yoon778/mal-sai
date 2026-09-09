@@ -54,7 +54,7 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
       if (req.method === 'GET' && path === '/api/history') {
         json(store.list(owner).map(g => ({ id: g.id, title: g.scenario.title, stage: g.stage, turn: g.turn, createdAt: g.createdAt }))); return;
       }
-      const match = path.match(/^\/api\/games\/([a-f\d-]{36})(?:\/(shuffle|start|read|send|wait|wait-start|hint|topic|finish|retry|drill|drill-answer))?$/);
+      const match = path.match(/^\/api\/games\/([a-f\d-]{36})(?:\/(shuffle|start|read|send|wait|wait-start|hint|topic|finish|reevaluate|retry|drill|drill-answer))?$/);
       if (req.method === 'GET' && match && !match[2]) {
         const game = ownedGame(owner, match[1]);
         json(publicGame(game)); return;
@@ -154,6 +154,7 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
           case 'hint': await getHint(game, gameAI); break;
           case 'topic': await getTopicHelp(game, gameAI); break;
           case 'finish': await finishGame(game, gameAI, { early: input.early === true }); break;
+          case 'reevaluate': await finishGame(game, gameAI, { refresh: true }); break;
           case 'retry': retryTurn(game, input.turn); break;
           case 'drill': startDrill(game); break;
           case 'drill-answer': await submitDrill(game, input.answer, gameAI); break;

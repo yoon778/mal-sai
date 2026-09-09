@@ -143,18 +143,19 @@ function rating(name, label) {
 }
 
 function coachingCards(items) {
-  return `<section class="coaching-cards"><h2>다시 볼 대화 ${items.length}장면</h2><p class="quiet">예시는 정답이 아니에요 · 내 말투로 바꿔 써보세요</p>${items.map((item, index) => {
+  return `<section class="coaching-cards"><h2>다시 볼 대화 ${items.length}장면</h2><p class="quiet">잘한 답장은 그대로 · 바꿔볼 장면은 대화 행동부터 살펴봐요</p>${items.map((item, index) => {
     const position = game.messages.findIndex(message => message.id === item.messageId);
     const message = game.messages[position];
+    const currentReply = game.messages.filter(m => m.role === 'user' && !m.background && m.turn === message.turn);
     let end = position - 1;
     while (end >= 0 && game.messages[end].role === 'user') end--;
     let start = end;
     while (start >= 0 && game.messages[start].role === 'partner') start--;
     const preceding = game.messages.slice(start + 1, end + 1);
-    return `<article class="coaching-card ${item.kind}"><div class="coaching-heading"><span>장면 ${index + 1} · ${message.turn}번째 답장</span><b>${item.kind === 'strength' ? '잘 이어갔어요' : '이렇게 바꿔볼까요'}</b></div>
-      <div class="coaching-original"><small>상대의 말</small>${preceding.length ? preceding.map(m => `<blockquote>${escape(m.text)}</blockquote>`).join('') : '<p>먼저 대화를 시작한 장면</p>'}<small>내가 보낸 답장</small><blockquote class="own-quote">${escape(message.text)}</blockquote></div>
-      <p>${escape(item.reason)}</p>${item.principle ? `<details class="principle-source"><summary>${escape(item.principle.title)} · 참고 원칙</summary><p>조사 내용을 바탕으로 만든 연습 기준이에요</p><a href="${escape(item.principle.source.url)}" target="_blank" rel="noopener noreferrer">${escape(item.principle.source.title)}</a><small>${escape(item.principle.source.access)}</small></details>` : ''}<div class="coaching-alternative"><h3>그때 이렇게 답해볼 수도 있어요</h3><blockquote>${escape(item.alternative)}</blockquote></div>
-      <h3>그다음에는</h3><p>${escape(item.nextStep)}</p>${button('retry', '이 장면부터 다시 답해보기 ↗', 'primary', `data-turn="${message.turn}"`)}</article>`;
+    return `<article class="coaching-card ${item.kind}"><div class="coaching-heading"><span>장면 ${index + 1} · ${message.turn}번째 답장</span><b>${item.kind === 'strength' ? '이 답장은 그대로 좋아요' : '다른 방식으로 이어보기'}</b></div>
+      <div class="coaching-original"><small>상대의 말</small>${preceding.length ? preceding.map(m => `<blockquote>${escape(m.text)}</blockquote>`).join('') : '<p>먼저 대화를 시작한 장면</p>'}<small>내가 보낸 답장</small>${currentReply.map(m => `<blockquote class="own-quote">${escape(m.text)}</blockquote>`).join('')}</div>
+      <p>${escape(item.reason)}</p>${item.principle ? `<details class="principle-source"><summary>${escape(item.principle.title)} · 참고 원칙</summary><p>조사 내용을 바탕으로 만든 연습 기준이에요</p><a href="${escape(item.principle.source.url)}" target="_blank" rel="noopener noreferrer">${escape(item.principle.source.title)}</a><small>${escape(item.principle.source.access)}</small></details>` : ''}${item.kind === 'improvement' ? `<div class="coaching-alternative">${item.change ? `<h3>바꿀 대화 행동</h3><p>${escape(item.change)}</p>` : ''}<h3>그 행동을 담은 답장 예시</h3><blockquote>${escape(item.alternative)}</blockquote><small>예시는 정답이 아니에요 내 말투로 표현해 보세요</small></div>` : ''}
+      <h3>${item.kind === 'strength' ? '다음에도 이어갈 습관' : '그다음에는'}</h3><p>${escape(item.nextStep)}</p>${button('retry', '이 장면부터 다시 답해보기 ↗', 'primary', `data-turn="${message.turn}"`)}</article>`;
   }).join('')}</section>`;
 }
 
@@ -185,6 +186,7 @@ function renderReview() {
   main.innerHTML = `<div class="review-page"><div class="review-top"><div><p class="eyebrow">대화 한 판 완료</p><h1>한 번 해봤으니,<br>한 번 더 잘해보자</h1><p>${escape(result.summary)}</p></div>${button('home', '새 상황 연습하기 ↗', 'primary')}</div>
     ${modeNote()}<div class="review-grid"><section class="score-panel"><p class="eyebrow">대화 기술</p><div class="score">${result.score ?? '—'}<span>${result.score === null ? unscored : '/ 100'}</span></div><p class="quiet">${game.mode === 'demo' ? '실제 AI를 연결하면 근거가 있는 점수를 볼 수 있어요.' : `관찰 범위 ${result.coverage}% · 짧은 대화에 대한 임시 평가예요.`}</p><div class="rubric-list">${result.criteria.map(c => `<details><summary><span>${escape(c.label)}</span><b>${c.score === null ? unscored : `${c.score} / 4`}</b></summary><p>${escape(c.reason)}</p>${c.evidenceIds.map(id => `<blockquote>${escape(game.messages.find(m => m.id === id)?.text)}</blockquote>`).join('')}</details>`).join('')}</div><p class="quiet">힌트 ${game.totalHints}회 · 감점 없음</p></section>
       <div class="feedback-column"><section class="outcome"><span class="eyebrow">이번 상황의 결과</span><h2>${escape(result.outcome)}</h2><p>상황 결과와 대화 기술은 별개예요. 약속이 잡히지 않아도 좋은 대응일 수 있어요.</p></section>
+      ${game.mode === 'live' && result.coachingVersion !== 2 ? `<section class="mode-note"><p>이전에 저장된 복기예요 잘한 답장은 유지하고, 바꿀 대화 행동을 짚는 새 기준으로 다시 받을 수 있어요</p>${button('reevaluate', '새 기준으로 복기 다시 받기', 'primary')}</section>` : ''}
       ${eventReview()}${expressionNotes()}${result.moments?.length ? coachingCards(result.moments) : `${feedbackItems(result.strengths, '잘 이어간 부분', 'strength')}${feedbackItems(result.improvements, game.mode === 'demo' ? '스스로 돌아보기' : '다르게 해볼 부분', 'improvement')}`}
       ${game.comparison && result.score !== null && game.comparison.score !== null ? `<p class="score-comparison">이전 기술 점수 ${game.comparison.score} · 이번 ${result.score}<br><small>AI 평가의 변동이 있으므로 차이 자체를 실력 향상으로 단정하지 않아요.</small></p>` : ''}</div></div>
     ${comparisonPanel()}<details class="full-transcript"><summary>전체 대화에서 다시 시작할 답장 고르기</summary><div>${game.messages.map(m => bubble(m, { review: true })).join('')}</div></details>${feedbackPanel()}
@@ -313,6 +315,7 @@ main.addEventListener('click', event => {
     return run(async () => { await action('topic'); topicOpen = true; hintOpen = false; }, '이어갈 주제를 찾는 중…');
   }
   if (name === 'finish') return run(() => action('finish'), '다섯 번의 답장을 돌아보는 중…');
+  if (name === 'reevaluate') return run(() => action('reevaluate'), '답장 당시의 맥락과 다른 대화 방법을 살펴보는 중…');
   if (name === 'retry') return run(async () => { await action('retry', { turn: Number(target.dataset.turn) }); draft = []; inputText = ''; hintOpen = false; topicOpen = false; delayMinutes = 0; }, '그 순간으로 돌아가는 중…');
 });
 main.addEventListener('submit', event => {

@@ -63,6 +63,25 @@ test('cached hints and invalid actions do not consume AI quota', async t => {
   assert.equal((await request(`${path}/send`, { messages: ['일요일 오후 어때'], delayMinutes: 0 })).status, 200);
 });
 
+test('refreshing a saved evaluation enforces ownership, idempotency and AI quota', async t => {
+  let evaluations = 0;
+  const request = await client(t, { ai: { ...demoAI, mode: 'live', evaluate: async game => { evaluations++; return demoAI.evaluate(game); } }, safety: async () => {}, dailyLimit: 3 });
+  const path = await ready(request);
+  assert.equal((await request(`${path}/reevaluate`, {})).status, 400);
+  await request(`${path}/send`, { messages: ['일요일에 그 카페 가볼래'], delayMinutes: 0 });
+  await request(`${path}/read`, { delayMinutes: 0 });
+  const finished = await request(`${path}/finish`, { early: true });
+  assert.equal(finished.status, 200);
+  const input = { requestId: randomUUID(), expectedRevision: finished.data.revision };
+  assert.equal((await request(`${path}/reevaluate`, input, 'different-user-000000000000000')).status, 404);
+  const refreshed = await request(`${path}/reevaluate`, input);
+  assert.equal(refreshed.status, 200);
+  assert.deepEqual((await request(`${path}/reevaluate`, input)).data, refreshed.data);
+  assert.equal(evaluations, 2);
+  assert.equal((await request(`${path}/reevaluate`, {})).status, 429);
+  assert.deepEqual((await request(path)).data, refreshed.data);
+});
+
 test('early finish observes only played turns and supports one new-context drill', async () => {
   const game = newGame({ scenarioId: 'second-date', interest: 'open' }, 'demo');
   startGame(game); readMessages(game, 0);
