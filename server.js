@@ -19,8 +19,11 @@ assets.set('/designs.css', ['designs.css', 'text/css']);
 assets.set('/platform.js', ['platform.js', 'text/javascript']);
 assets.set('/privacy', ['privacy.html', 'text/html']);
 
-export function createServer({ ai = createAI({ directory: join(root, '.data') }), store = new Store(), access = createAccess(), safety = createSafety({ stopFile: join(root, '.data', 'ai-paused') }), dailyLimit = 100 } = {}) {
+export function createServer({ ai = createAI({ directory: join(root, '.data') }), store = new Store(), access = createAccess(), safety = createSafety({ stopFile: join(root, '.data', 'ai-paused') }), dailyLimit = 30, minuteLimit = 6, maxConcurrentAI = 3 } = {}) {
   if (!Number.isInteger(dailyLimit) || dailyLimit < 1 || dailyLimit > 1000) throw new Error('Invalid daily AI limit');
+  if (!Number.isInteger(minuteLimit) || minuteLimit < 1 || minuteLimit > 60) throw new Error('Invalid minute AI limit');
+  if (!Number.isInteger(maxConcurrentAI) || maxConcurrentAI < 1 || maxConcurrentAI > 20) throw new Error('Invalid concurrent AI limit');
+  let activeAI = 0;
   const locks = new Set();
   const protectedAI = ai.mode === 'live' ? safeAI(ai, safety) : ai;
   const cleanup = setInterval(() => { try { store.prune(); } catch (error) { console.error('Retention cleanup failed', error.code ?? 'storage_error'); } }, 3600_000);
@@ -48,7 +51,7 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
         const body = await readFile(join(root, 'public', file));
         res.writeHead(200, { 'Content-Type': `${type}; charset=utf-8` }); res.end(body); return;
       }
-      if (req.method === 'GET' && path === '/api/config') { json({ mode: ai.mode, scenarios: scenarios.map(({ id, title }) => ({ id, title })) }); return; }
+      if (req.method === 'GET' && path === '/api/config') { json({ mode: ai.mode, scenarios: scenarios.map(({ id, title }) => ({ id, title })), aiLimits: { daily: dailyLimit, minute: minuteLimit } }); return; }
       if (!path.startsWith('/api/')) throw new GameError('페이지를 찾을 수 없어요', 404);
       const owner = await access.owner(req);
       if (req.method === 'GET' && path === '/api/history') {
@@ -133,12 +136,16 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
         gameAI[method] = async (...args) => {
           if (game.mode === 'live') {
             if (ai.mode !== 'live') throw new GameError('AI 연결이 꺼져 있어요 연결이 복구된 뒤 이 연습을 이어갈 수 있어요', 503);
-            store.consume(owner, dailyLimit);
-            await safety(JSON.stringify(method === 'reviewDrill' ? { situation: args[0].drill, answer: args[1] } : args[0].messages.slice(-10).map(m => ({ role: m.role, text: m.text }))));
+            if (activeAI >= maxConcurrentAI) throw Object.assign(new GameError('지금 AI 이용자가 많아요 잠시 후 다시 시도해 주세요', 429), { retryAfter: 5 });
+            store.consumeAI(owner, dailyLimit, minuteLimit);
+            activeAI++;
           }
-          const result = await baseAI[method](...args);
-          args[0].aiVersions = { ...args[0].aiVersions, [method]: baseAI.metadata ?? null };
-          return result;
+          try {
+            if (game.mode === 'live') await safety(JSON.stringify(method === 'reviewDrill' ? { situation: args[0].drill, answer: args[1] } : args[0].messages.slice(-10).map(m => ({ role: m.role, text: m.text }))));
+            const result = await baseAI[method](...args);
+            args[0].aiVersions = { ...args[0].aiVersions, [method]: baseAI.metadata ?? null };
+            return result;
+          } finally { if (game.mode === 'live') activeAI--; }
         };
       }
         switch (match[2]) {
@@ -164,6 +171,7 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
         store.save(owner, 'game', game);
         json(publicGame(game));
     } catch (error) {
+      if (!res.headersSent && Number.isInteger(error.retryAfter)) res.setHeader('Retry-After', String(error.retryAfter));
       if (!res.headersSent) json({ error: error instanceof GameError ? error.message : '서버 처리 중 문제가 생겼어요.' }, error.status ?? 500);
       else res.end();
       if (!(error instanceof GameError)) console.error(error.name, error.code ?? 'internal_error');
@@ -179,6 +187,6 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   const port = Number(process.env.PORT ?? 3000);
   const settings = deployment();
   const directory = process.env.DATA_DIRECTORY ?? join(root, '.data');
-  createServer({ ai: createAI({ directory }), store: new Store({ directory, key: process.env.STORAGE_KEY }), access: createAccess(settings), safety: createSafety({ stopFile: join(directory, 'ai-paused') }), dailyLimit: Number(process.env.AI_DAILY_REQUEST_LIMIT ?? 100) })
+  createServer({ ai: createAI({ directory }), store: new Store({ directory, key: process.env.STORAGE_KEY }), access: createAccess(settings), safety: createSafety({ stopFile: join(directory, 'ai-paused') }), dailyLimit: Number(process.env.AI_DAILY_REQUEST_LIMIT ?? 30), minuteLimit: Number(process.env.AI_MINUTE_REQUEST_LIMIT ?? 6), maxConcurrentAI: Number(process.env.AI_MAX_CONCURRENT_REQUESTS ?? 3) })
     .listen(port, settings.mode === 'toss' ? '0.0.0.0' : '127.0.0.1', () => console.log(`말사이 · ${settings.mode} · port ${port}`));
 }

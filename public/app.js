@@ -55,7 +55,7 @@ function bubble(message, { preview = false, review = false } = {}) {
 }
 
 function modeNote() {
-  return game.mode === 'demo' ? '<p class="mode-note">체험 모드 · 준비된 반응으로 진행하며 AI 점수는 제공하지 않아요</p>' : '<p class="mode-note">AI 연습 상대 · 입력한 대화는 응답·평가를 위해 OpenAI로 전송돼요</p>';
+  return game.mode === 'demo' ? '<p class="mode-note">체험 모드 · 준비된 반응으로 진행하며 AI 점수는 제공하지 않아요</p>' : `<p class="mode-note">AI 연습 상대 · 입력한 대화는 응답·평가를 위해 OpenAI로 전송돼요${game.stage === 'preview' && config.aiLimits ? `<br>답장·힌트·주제 도움·복기·복습 합쳐 하루 ${escape(config.aiLimits.daily)}회 · 한국 시간 오전 9시 초기화<br>상황 뽑기와 저장된 기록 조회는 횟수를 차감하지 않아요` : ''}</p>`;
 }
 
 function renderPreview() {
