@@ -2,14 +2,16 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>말사이 · 디자인 스튜디오</title>
+  <title>말사이 · 자주 쓰는 기능, 세 가지 디자인</title>
   <link rel="stylesheet" href="/designs.css"><script type="module" src="/designs.js"></script>
 </head>
 <body>
   <a class="skip" href="#stage">시안으로 이동</a>
-  <header class="studio"><a href="/" class="studio-brand">말사이 <span>DESIGN STUDY</span></a><nav aria-label="디자인 초안 선택"><button data-design="a" aria-pressed="true">A <span>연습 노트</span></button><button data-design="b" aria-pressed="false">B <span>대화 퀘스트</span></button><button data-design="c" aria-pressed="false">C <span>포커스 룸</span></button></nav><a href="/" class="back">실제 연습으로 ↗</a></header>
-  <div class="study-note"><p id="design-note"></p><div class="screen-switch" aria-label="미리 볼 화면"><button data-screen="chat" aria-pressed="true">대화 화면</button><button data-screen="review" aria-pressed="false">복기 화면</button></div></div>
+  <header class="studio"><a href="/" class="studio-brand">말사이 <span>디자인 스튜디오 / 02</span></a><nav aria-label="디자인 초안 선택"><button data-design="a" aria-pressed="false"><b>A</b> 간결한 도구형</button><button data-design="b" aria-pressed="true"><b>B</b> 대화 퀘스트 <span class="recommend">추천</span></button><button data-design="c" aria-pressed="false"><b>C</b> 메신저 집중형</button></nav><a href="/" class="back">실제 연습으로 ↗</a></header>
+  <div class="study-heading"><div><span class="eyebrow">더 잘 보이고, 더 쉽게 쓰도록</span><h1 id="design-title"></h1><p id="design-note"></p></div><div class="screen-switch" aria-label="미리 볼 화면"><button data-screen="chat" aria-pressed="true">대화</button><button data-screen="review" aria-pressed="false">복기</button></div></div>
   <main id="stage" tabindex="-1"></main>
-  <footer class="references"><span>인터랙티브 디자인 초안 · 예시 대화 · AI 호출 없음</span><span>참고 <a href="https://www.headspace.com/app" target="_blank" rel="noreferrer">Headspace ↗</a> <a href="https://blog.duolingo.com/guide-to-duolingo-practice-hub/" target="_blank" rel="noreferrer">Duolingo ↗</a> <a href="https://linear.app/now/how-we-redesigned-the-linear-ui" target="_blank" rel="noreferrer">Linear ↗</a></span></footer>
-</body>
-</html>
+  <aside class="design-rationale" aria-label="디자인에서 달라진 점" id="rationale"></aside>
+  <footer class="references"><p>동작하는 디자인 시안 · 예시 답장 · AI 호출 및 실제 기록 변경 없음</p><div>참고한 디자인 원칙 <a href="https://toss.tech/article/toss-design-system" target="_blank" rel="noreferrer">Toss TDS ↗</a><a href="https://blog.duolingo.com/new-duolingo-home-screen-design/" target="_blank" rel="noreferrer">Duolingo ↗</a><a href="https://linear.app/now/behind-the-latest-design-refresh" target="_blank" rel="noreferrer">Linear ↗</a><a href="https://design-system.service.gov.uk/components/button/" target="_blank" rel="noreferrer">버튼 우선순위 ↗</a></div></footer>
+  <div id="sample-status" role="status" class="toast" hidden></div>
+  <dialog id="reset-dialog" aria-labelledby="reset-title"><form method="dialog"><span class="dialog-icon" aria-hidden="true">↻</span><h2 id="reset-title">예시 대화를 초기화할까요?</h2><p>시안에서 작성한 답장만 지워져요<br>실제 연습 기록에는 영향을 주지 않아요</p><div class="dialog-actions"><button value="cancel" autofocus>계속 대화하기</button><button value="reset" class="solid">초기화하기</button></div></form></dialog>
+</body></html>

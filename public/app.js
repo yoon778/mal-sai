@@ -65,7 +65,7 @@ function renderPreview() {
       </div>${button('shuffle', '설정 적용해서 다시 뽑기', 'secondary wide')}</details>
       <p class="quiet adult-note">20세 이상 성인을 위한 가상의 대화 연습이에요</p>
     </section>
-    <section class="scenario-preview" aria-label="대화 시작 준비"><div class="scenario-heading"><span class="eyebrow">오늘의 상황</span>${button('shuffle', '다른 상황 ↻', 'text-button')}</div>
+    <section class="scenario-preview" aria-label="대화 시작 준비"><div class="scenario-heading"><span class="eyebrow">오늘의 상황</span>${button('shuffle', '↻ 다른 상황 뽑기', 'secondary quick-reset')}</div>
       <div class="scenario-description"><span class="tag">${escape(game.scenario.label)}</span><h2>${escape(game.scenario.title)}</h2><p>${escape(game.scenario.context)}</p></div>
       <div class="chat-heading"><span class="avatar">${escape(game.profile.name.slice(-1))}</span><div><strong>${escape(game.profile.name)}</strong><span>${game.profile.age}세 · ${escape(game.profile.gender === 'female' ? '여성' : '남성')} · ${escape(game.profile.speechStyle)}</span></div><span class="history-tag">${escape(game.scenario.historyLabel)}</span></div>
       <p class="preview-tip">말투와 관심사를 살펴보고 이어서 대화해 보세요</p>
@@ -99,7 +99,7 @@ function renderChat() {
   const unread = game.waiting || game.messages.some(m => m.role === 'partner' && m.readAt === null);
   const ended = game.turn === 5;
   main.innerHTML = `<div class="play-layout"><aside class="play-sidebar">
-    ${button('home', '← 새 연습', 'text-button')}<p class="eyebrow">${escape(game.scenario.label)}</p><h1>${escape(game.scenario.title)}</h1><details class="scene-details"><summary>상황 다시 보기</summary><p>${escape(game.scenario.context)}</p></details>
+    <p class="eyebrow">${escape(game.scenario.label)}</p><h1>${escape(game.scenario.title)}</h1><details class="scene-details"><summary>상황 다시 보기</summary><p>${escape(game.scenario.context)}</p></details>
     <div class="goal"><span>이번 연습의 목표</span><strong>${escape(game.scenario.goal)}</strong></div>
     <div class="progress-label"><strong>나의 답장</strong><span>${game.turn} / 5</span></div><div class="progress" role="progressbar" aria-label="답장 진행" aria-valuemin="0" aria-valuemax="5" aria-valuenow="${game.turn}">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= game.turn ? 'filled' : ''}"></i>`).join('')}</div>
     <p class="quiet">말풍선을 나눠 보내도 한 번의 답장이에요.<br>가상 시간은 실제로 기다리지 않아요.</p>
@@ -196,7 +196,7 @@ function render() {
     main.insertAdjacentHTML('beforeend', drillPanel());
   }
   main.insertAdjacentHTML('afterbegin', questPath());
-  main.insertAdjacentHTML('afterbegin', `<nav class="practice-tools" aria-label="기록과 도움말">${button('history', '내 연습 기록', 'text-button')}${button('privacy', '데이터 안내', 'text-button')}${game.stage !== 'preview' ? button('report', '답장 신고', 'text-button') : ''}</nav>`);
+  main.insertAdjacentHTML('afterbegin', `<nav class="practice-tools" aria-label="기록과 도움말">${game.stage === 'chat' ? button('home', '↻ 새 연습 시작', 'secondary quick-reset', 'title="현재 연습은 기록에 남고, 새 상황으로 시작해요"') : ''}${button('history', '내 연습 기록', 'text-button history-shortcut')}${button('privacy', '데이터 안내', 'text-button')}${game.stage !== 'preview' ? button('report', '답장 신고', 'text-button') : ''}</nav>`);
   main.setAttribute('aria-busy', String(pending));
   if (game.turn > 0) main.querySelector('.practice-tools').insertAdjacentHTML('beforeend', button('quality', '어색한 답장 제보', 'text-button'));
   if (pending) main.querySelectorAll('button, input, select, textarea, summary').forEach(el => { el.disabled = true; });

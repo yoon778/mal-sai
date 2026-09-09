@@ -59,8 +59,9 @@ npm start
 
 브라우저에서 <http://localhost:3000> 접속
 
-디자인 초안 3종: [연습 노트 / 대화 퀘스트 / 포커스 룸](http://localhost:3000/designs)
+디자인 초안 3종: [간결한 도구형 / 대화 퀘스트 / 메신저 집중형](http://localhost:3000/designs#b)
 대화·복기 화면과 모바일 배치를 비교할 수 있으며 시안에서는 API를 호출하지 않음
+초기화·힌트·주제·전송 버튼의 배치와 강조 방식 비교: [디자인 근거와 적용 범위](./docs/control-designs-2026-09-09.md)
 
 ```bash
 npm test
