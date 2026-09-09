@@ -2,6 +2,8 @@ import { User, SafeArea, Screen, Storage, graniteEvent } from '@apps-in-toss/web
 
 let cleanups = [];
 export async function initialize(onBack) {
+  // Toss requires gesture zoom disabled; the standalone web page keeps zoom.
+  document.querySelector('meta[name="viewport"]').content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';
   const identity = await User.getAnonymousKey();
   if (identity?.type !== 'HASH' || !identity.hash) throw new Error('토스에서 말사이를 다시 열어 주세요');
   cleanups.forEach(remove => remove());

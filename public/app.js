@@ -360,7 +360,11 @@ async function boot() {
     await initializePlatform(() => {
       const openDialog = document.querySelector('dialog[open]');
       if (openDialog) return openDialog.close();
-      if (pending) return;
+      if (pending) {
+        const element = dialog('응답을 기다리는 중이에요', '<p>지금 나가도 괜찮아요 처리 중인 요청은 완료되면 기록에 남고, 아직 보내지 않은 답장은 사라져요</p><button class="primary" id="leave-pending">말사이 나가기</button>');
+        element.querySelector('#leave-pending').onclick = () => closeApp().catch(showError);
+        return;
+      }
       if (!game || game.stage === 'preview') closeApp().catch(showError);
       else {
         const element = dialog('연습을 잠시 나갈까요?', '<p>보낸 대화는 내 연습 기록에서 다시 열 수 있어요 작성 중인 답장은 사라져요</p><button class="primary" id="return-home">처음으로</button>');
