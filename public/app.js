@@ -3,6 +3,7 @@ const main = document.querySelector('#main');
 const notice = document.querySelector('#notice');
 let config, game, pending = false, draft = [], inputText = '', delayMinutes = 0, hintOpen = false, topicOpen = false;
 let settings = { gender: 'random', speech: 'random', interest: 'random', initiative: 'random', humor: 'random', channel: 'random', scenarioId: 'random' };
+let pendingOperation = null, drillText = '';
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const button = (action, text, className = '', attrs = '') => `<button type="button" data-action="${action}" class="${className}" ${attrs}>${text}</button>`;
 const clock = minutes => {
@@ -14,7 +15,7 @@ const clock = minutes => {
 };
 
 async function api(path, body) {
-  const response = await fetch(apiOrigin + path, { headers: { ...authorization(), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }) });
+  const response = await fetch(apiOrigin + path, { signal: AbortSignal.timeout(body === undefined ? 15000 : 75000), headers: { ...authorization(), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }) });
   const result = await response.json();
   if (!response.ok) { const error = new Error(result.error ?? '요청을 처리하지 못했어요.'); error.status = response.status; throw error; }
   return result;
@@ -112,7 +113,7 @@ function renderChat() {
         ${topicOpen && game.topicHelp ? `<div class="topic-help"><span>대화 연결 연습</span><dl><div><dt>꺼낼 주제</dt><dd>${escape(game.topicHelp.topic)}</dd></div><div><dt>이렇게 연결</dt><dd>${escape(game.topicHelp.bridge)}</dd></div><div><dt>답을 받으면</dt><dd>${escape(game.topicHelp.next)}</dd></div><div><dt>피할 방식</dt><dd>${escape(game.topicHelp.avoid)}</dd></div></dl><small>그대로 복사하기보다 내 말투로 바꿔보세요 · ${game.totalTopicHelps}회 사용</small></div>` : ''}
         <div class="draft-bubbles">${draft.map((text, i) => `<div class="draft-bubble"><span>${escape(text)}</span>${button('remove-draft', '×', 'text-button', `data-index="${i}" aria-label="작성 중인 말풍선 ${i + 1} 삭제"`)}</div>`).join('')}</div>
         <form id="composer"><label class="sr-only" for="message-input">답장 작성</label><textarea id="message-input" maxlength="400" rows="2" placeholder="${game.waiting ? '상대의 답장을 기다리는 중이에요' : unread ? '새 메시지를 먼저 읽어주세요' : '나답게, 편하게 답해보세요'}" ${unread ? 'disabled' : ''}>${escape(inputText)}</textarea><div class="composer-bottom"><div class="emoji-row" aria-label="이모티콘">${['🙂', '😂', '🥲', '👍', '☕'].map(emoji => button('emoji', emoji, 'emoji', `data-emoji="${emoji}" aria-label="${emoji} 넣기" ${unread ? 'disabled' : ''}`)).join('')}</div><div>${button('split', '+ 나눠쓰기', 'text-button', unread || draft.length >= 2 ? 'disabled' : '')}<button type="submit" class="primary send" ${unread ? 'disabled' : ''}>보내기 <span aria-hidden="true">↑</span></button></div></div></form>
-        <div class="composer-help"><span>Enter 전송 · Shift+Enter 줄바꿈</span><span>말풍선당 400자</span></div>`}
+        <div class="composer-help"><span>Enter 전송 · Shift+Enter 줄바꿈</span><span>말풍선당 400자</span></div>${game.turn > 0 && !unread ? button('finish-early', '여기서 잘 마무리하기', 'text-button') : ''}`}
       </div>
     </section></div>${comparisonPanel()}`;
   const scroll = document.querySelector('#chat-scroll');
@@ -190,9 +191,14 @@ function render() {
   if (game.stage === 'preview') renderPreview();
   else if (game.stage === 'finished') renderReview();
   else renderChat();
+  if (game.stage === 'finished') {
+    if (game.finishedEarly) main.insertAdjacentHTML('afterbegin', `<p class="mode-note">${game.turn}번 답장 후 마무리했어요 · 짧은 대화에서 관찰한 내용만 복기해요</p>`);
+    main.insertAdjacentHTML('beforeend', drillPanel());
+  }
   main.insertAdjacentHTML('afterbegin', questPath());
   main.insertAdjacentHTML('afterbegin', `<nav class="practice-tools" aria-label="기록과 도움말">${button('history', '내 연습 기록', 'text-button')}${button('privacy', '데이터 안내', 'text-button')}${game.stage !== 'preview' ? button('report', '답장 신고', 'text-button') : ''}</nav>`);
   main.setAttribute('aria-busy', String(pending));
+  if (game.turn > 0) main.querySelector('.practice-tools').insertAdjacentHTML('beforeend', button('quality', '어색한 답장 제보', 'text-button'));
   if (pending) main.querySelectorAll('button, input, select, textarea, summary').forEach(el => { el.disabled = true; });
 }
 
@@ -220,17 +226,36 @@ async function run(task, status = '처리 중…') {
     else if (focusAction) focus = [...main.querySelectorAll('[data-action]')].find(el => el.dataset.action === focusAction && (!focusDelay || el.dataset.delay === focusDelay));
     focus?.focus({ preventScroll: true });
   }
-  catch (error) { showError(error); controls.forEach((el, i) => { el.disabled = disabledBefore[i]; }); }
+  catch (error) {
+    if (error.stateChanged) { pending = false; render(); }
+    else controls.forEach((el, i) => { el.disabled = disabledBefore[i]; });
+    showError(error);
+  }
   finally { pending = false; main.setAttribute('aria-busy', 'false'); busy.remove(); }
 }
 
-async function action(name, body = {}) { game = await api(`/api/games/${game.id}/${name}`, body); }
+async function action(name, body = {}) {
+  const gameId = game.id, revision = game.revision ?? 0;
+  const key = JSON.stringify({ gameId, name, body });
+  if (pendingOperation?.key !== key) pendingOperation = { key, input: { ...body, expectedRevision: revision, requestId: crypto.randomUUID() } };
+  const operation = pendingOperation;
+  try { game = await api(`/api/games/${gameId}/${name}`, operation.input); pendingOperation = null; }
+  catch (error) {
+    try {
+      const current = await api(`/api/games/${gameId}`);
+      if (current.completedRequestIds?.includes(operation.input.requestId)) { game = current; pendingOperation = null; return; }
+      if (current.revision !== revision) { game = current; error.stateChanged = true; pendingOperation = null; }
+    } catch { /* Keep the same operation ID while the outcome is uncertain. */ }
+    if (error.status && error.status < 500 && error.status !== 409) pendingOperation = null;
+    throw error;
+  }
+}
 
 main.addEventListener('change', event => {
   if (event.target.matches('.settings select')) settings[event.target.name] = event.target.value;
   if (event.target.id === 'reply-delay') delayMinutes = Number(event.target.value);
 });
-main.addEventListener('input', event => { if (event.target.id === 'message-input') inputText = event.target.value; });
+main.addEventListener('input', event => { if (event.target.id === 'message-input') inputText = event.target.value; if (event.target.id === 'drill-input') drillText = event.target.value; });
 main.addEventListener('click', event => {
   const target = event.target.closest('[data-action]');
   if (!target || pending || target.disabled) return;
@@ -239,6 +264,13 @@ main.addEventListener('click', event => {
   if (name === 'history') return showHistory();
   if (name === 'privacy') return showPrivacy();
   if (name === 'report') return showReport();
+  if (name === 'quality') return showQualityReport();
+  if (name === 'drill') return run(() => action('drill'), '복습 상황 준비 중…');
+  if (name === 'finish-early') {
+    const element = dialog('여기서 마무리할까요?', '<p>관찰된 답장만 복기해요 짧게 끝냈다는 이유만으로 감점하지 않아요</p><button id="confirm-finish" class="primary">마무리하고 복기하기</button>');
+    element.querySelector('#confirm-finish').onclick = () => { element.close(); run(() => action('finish', { early: true }), '대화를 돌아보는 중…'); };
+    return;
+  }
   if (name === 'emoji') {
     const textarea = document.querySelector('#message-input');
     if (inputText.length + target.dataset.emoji.length <= 400) { textarea.setRangeText(target.dataset.emoji, textarea.selectionStart, textarea.selectionEnd, 'end'); inputText = textarea.value; textarea.focus(); }
@@ -251,24 +283,34 @@ main.addEventListener('click', event => {
   if (name === 'remove-draft') { draft.splice(Number(target.dataset.index), 1); render(); return; }
   if (name === 'shuffle' || name === 'home') return run(async () => {
     if (name === 'shuffle' && game.stage === 'preview') {
-      try { game = await api(`/api/games/${game.id}/shuffle`, settings); }
+      try { await action('shuffle', settings); }
       catch (error) {
         if (error.status !== 404) throw error;
         game = await api('/api/games', settings);
       }
     } else game = await api('/api/games', settings);
-    draft = []; inputText = ''; delayMinutes = 0; hintOpen = false; topicOpen = false;
+    draft = []; inputText = ''; drillText = ''; delayMinutes = 0; hintOpen = false; topicOpen = false; pendingOperation = null;
   }, '다음 상황 준비 중…');
   if (name === 'start') return run(() => action('start'), '대화 시작 중…');
   if (name === 'read') return run(() => action('read', { delayMinutes: Number(target.dataset.delay) }), '메시지 읽는 중…');
   if (name === 'wait') return run(() => action('wait', { delayMinutes: Number(target.dataset.delay) }), '가상 시간 이동 중…');
   if (name === 'wait-start') return run(async () => { await action('wait-start', { delayMinutes: Number(target.dataset.delay) }); hintOpen = false; topicOpen = false; }, '가상 시간 이동 중…');
-  if (name === 'hint') return run(async () => { await action('hint'); hintOpen = !hintOpen; topicOpen = false; }, '대화를 이어갈 실마리 찾는 중…');
-  if (name === 'topic') return run(async () => { await action('topic'); topicOpen = !topicOpen; hintOpen = false; }, '이어갈 주제를 찾는 중…');
+  if (name === 'hint') {
+    if (hintOpen || game.hint) { hintOpen = !hintOpen; topicOpen = false; render(); return; }
+    return run(async () => { await action('hint'); hintOpen = true; topicOpen = false; }, '대화를 이어갈 실마리 찾는 중…');
+  }
+  if (name === 'topic') {
+    if (topicOpen || game.topicHelp) { topicOpen = !topicOpen; hintOpen = false; render(); return; }
+    return run(async () => { await action('topic'); topicOpen = true; hintOpen = false; }, '이어갈 주제를 찾는 중…');
+  }
   if (name === 'finish') return run(() => action('finish'), '다섯 번의 답장을 돌아보는 중…');
   if (name === 'retry') return run(async () => { await action('retry', { turn: Number(target.dataset.turn) }); draft = []; inputText = ''; hintOpen = false; topicOpen = false; delayMinutes = 0; }, '그 순간으로 돌아가는 중…');
 });
 main.addEventListener('submit', event => {
+  if (event.target.id === 'drill-form') {
+    event.preventDefault();
+    return run(async () => { await action('drill-answer', { answer: drillText }); drillText = ''; }, '복습 답장을 돌아보는 중…');
+  }
   if (event.target.id === 'feedback-form') {
     event.preventDefault();
     const data = new FormData(event.target);
@@ -306,7 +348,7 @@ async function boot() {
       const openDialog = document.querySelector('dialog[open]');
       if (openDialog) return openDialog.close();
       if (pending) return;
-      if (game?.stage === 'preview') closeApp().catch(showError);
+      if (!game || game.stage === 'preview') closeApp().catch(showError);
       else {
         const element = dialog('연습을 잠시 나갈까요?', '<p>보낸 대화는 내 연습 기록에서 다시 열 수 있어요 작성 중인 답장은 사라져요</p><button class="primary" id="return-home">처음으로</button>');
         element.querySelector('#return-home').onclick = async () => {
@@ -348,7 +390,7 @@ async function showHistory() {
     const element = dialog('내 연습 기록', `<p>최근 30일 기록 · 최대 100개</p><div class="history-list">${records.map(item => `<button class="secondary" data-game="${escape(item.id)}">${escape(item.title)}<small>${new Date(item.createdAt).toLocaleDateString('ko-KR')} · ${item.stage === 'finished' ? '복기 완료' : `${item.turn}/5 답장`}</small></button>`).join('') || '<p>저장된 연습이 없어요</p>'}</div><button class="text-button" id="delete-records">전체 기록 삭제</button>`);
     element.addEventListener('click', async event => {
       const id = event.target.closest('[data-game]')?.dataset.game;
-      if (id) { element.close(); await run(async () => { game = await api(`/api/games/${id}`); draft = []; inputText = ''; hintOpen = false; topicOpen = false; }); }
+      if (id) { element.close(); await run(async () => { game = await api(`/api/games/${id}`); draft = []; inputText = ''; drillText = ''; delayMinutes = 0; hintOpen = false; topicOpen = false; pendingOperation = null; }); }
       if (event.target.id === 'delete-records') {
         element.close();
         const confirmation = dialog('기록을 모두 삭제할까요?', '<p>대화·평가·의견·신고가 삭제되며 되돌릴 수 없어요 이용 횟수는 초기화되지 않아요</p><button class="primary" id="confirm-delete">전체 삭제</button>');
@@ -365,8 +407,26 @@ async function showHistory() {
   } catch (error) { showError(error); }
   finally { pending = false; }
 }
+function drillPanel() {
+  const drill = game.drill;
+  if (!drill) return `<section class="transfer-practice"><p class="eyebrow">한 문장 복습</p><h2>다른 상황에서도 써볼까요?</h2><p>방금 돌아본 대화 기술 하나를 새로운 상황에 적용해 봐요</p>${button('drill', '새 상황으로 한 문장 복습', 'primary')}</section>`;
+  return `<section class="transfer-practice"><p class="eyebrow">한 문장 복습 · 점수 없는 연습</p><h2>${escape(drill.title)}</h2><p>${escape(drill.context)}</p><blockquote>${escape(drill.partner)}</blockquote><p class="quiet">목표: ${escape(drill.focus)}</p>${drill.feedback ? `<div class="drill-feedback"><h3>내 답장</h3><blockquote>${escape(drill.answer)}</blockquote><p>${escape(drill.feedback.observation)}</p><h3>${game.mode === 'demo' ? '직접 확인해 보기' : '이렇게 표현할 수도 있어요'}</h3><p>${escape(drill.feedback.suggestion)}</p></div>` : `<form id="drill-form"><label for="drill-input">나라면 이렇게 답할래요</label><textarea id="drill-input" maxlength="400" rows="3" required>${escape(drillText)}</textarea><button class="primary">복습 답장 확인</button></form>`}</section>`;
+}
+function showQualityReport() {
+  const messages = game.messages.filter(m => m.role === 'partner' && !m.background && m.readAt !== null);
+  const element = dialog('어떤 점이 어색했나요?', `<form id="quality-form"><label>제보할 내용<select name="messageId" required>${game.stage === 'finished' ? '<option value="evaluation">이번 대화의 평가</option>' : ''}${messages.map(m => `<option value="${escape(m.id)}">${escape(m.text.slice(0, 60))}</option>`).join('')}</select></label><label>이유<select name="reason"><option value="style">말투가 부자연스러워요</option><option value="role">누구의 이야기인지 혼동했어요</option><option value="time">시간이나 일정이 맞지 않아요</option><option value="evaluation">평가를 납득하기 어려워요</option></select></label><label class="quality-consent"><input type="checkbox" name="consent" required>이 연습에서 공개된 대화·상황과 선택한 평가를 품질 검토용으로 제공하는 데 동의해요</label><p class="quiet">모델·프롬프트 버전과 함께 암호화해 30일간 보관해요 기록 전체 삭제 시 함께 삭제돼요 자동 모델 학습에는 사용하지 않아요</p><button class="primary" ${messages.length || game.stage === 'finished' ? '' : 'disabled'}>품질 제보 보내기</button></form>`);
+  const gameId = game.id;
+  element.querySelector('#quality-form').onsubmit = async event => {
+    event.preventDefault(); if (pending) return;
+    const data = new FormData(event.target), submit = event.target.querySelector('button');
+    pending = true; submit.disabled = true;
+    try { await api('/api/quality', { gameId, messageId: data.get('messageId'), reason: data.get('reason'), consent: data.has('consent') }); element.close(); notice.textContent = '품질 제보가 접수됐어요'; notice.hidden = false; }
+    catch (error) { showError(error); submit.disabled = false; }
+    finally { pending = false; }
+  };
+}
 function showPrivacy() {
-  dialog('대화와 기록 안내', '<p>입력한 대화와 연습 맥락은 OpenAI로 전송되어 답장·평가·안전 확인에 사용돼요 실제 사람의 개인정보는 입력하지 마세요</p><p>서버에는 대화·진행 상황·평가·의견·신고를 암호화해 30일간 저장해요 내 연습 기록에서 전체 삭제할 수 있어요 이용 횟수는 최대 3일간 유지돼요</p><p>현재 출시 준비 단계예요 운영자 정보와 정식 개인정보 처리방침 확정 후 공개돼요</p>');
+  dialog('대화와 기록 안내', '<p>입력한 대화와 연습 맥락은 OpenAI로 전송되어 답장·평가·복습·안전 확인에 사용돼요 실제 사람의 개인정보는 입력하지 마세요</p><p>서버에는 대화·진행 상황·평가·의견·신고와 별도로 동의한 품질 제보의 대화 맥락을 암호화해 30일간 저장해요 내 연습 기록에서 전체 삭제할 수 있어요 이용 횟수는 최대 3일간 유지돼요</p><p>현재 출시 준비 단계예요 운영자 정보와 정식 개인정보 처리방침 확정 후 공개돼요</p>');
 }
 function showReport() {
   const messages = game.messages.filter(m => m.role === 'partner' && !m.background && m.readAt !== null);

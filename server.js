@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { join, resolve } from 'node:path';
 import { createAI, demoAI } from './lib/ai.js';
@@ -8,6 +8,7 @@ import { Store } from './lib/store.js';
 import { createAccess, deployment } from './lib/access.js';
 import { createSafety, safeAI } from './lib/safety.js';
 import { scenarios } from './lib/scenarios.js';
+import { startDrill, submitDrill } from './lib/drills.js';
 import { newGame, publicGame, startGame, readMessages, sendTurn, waitForReply, waitToStart, getHint, getTopicHelp, finishGame, retryTurn, GameError } from './lib/game.js';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
@@ -53,12 +54,12 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
       if (req.method === 'GET' && path === '/api/history') {
         json(store.list(owner).map(g => ({ id: g.id, title: g.scenario.title, stage: g.stage, turn: g.turn, createdAt: g.createdAt }))); return;
       }
-      const match = path.match(/^\/api\/games\/([a-f\d-]{36})(?:\/(shuffle|start|read|send|wait|wait-start|hint|topic|finish|retry))?$/);
+      const match = path.match(/^\/api\/games\/([a-f\d-]{36})(?:\/(shuffle|start|read|send|wait|wait-start|hint|topic|finish|retry|drill|drill-answer))?$/);
       if (req.method === 'GET' && match && !match[2]) {
         const game = ownedGame(owner, match[1]);
         json(publicGame(game)); return;
       }
-      if (req.method !== 'POST' || !['/api/games', '/api/feedback', '/api/reports', '/api/account/delete'].includes(path) && !(match && match[2])) throw new GameError('페이지를 찾을 수 없어요.', 404);
+      if (req.method !== 'POST' || !['/api/games', '/api/feedback', '/api/reports', '/api/quality', '/api/account/delete'].includes(path) && !(match && match[2])) throw new GameError('페이지를 찾을 수 없어요.', 404);
       if (!(req.headers['content-type'] ?? '').startsWith('application/json')) throw new GameError('JSON 요청이 필요해요.', 415);
       const chunks = [];
       let length = 0;
@@ -85,6 +86,19 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
         store.save(owner, 'report', { id: randomUUID(), gameId: game.id, messageId: message.id, text: message.text, reason: input.reason, at: Date.now() });
         json({ saved: true }, 201); return;
       }
+      if (path === '/api/quality') {
+        const game = ownedGame(owner, input.gameId);
+        const message = game.messages.find(m => m.id === input.messageId && m.role === 'partner' && !m.background && m.readAt !== null);
+        const evaluation = input.messageId === 'evaluation' && game.stage === 'finished';
+        if (input.consent !== true || !['role', 'time', 'style', 'evaluation'].includes(input.reason) || !message && !evaluation) throw new GameError('제보할 내용과 맥락 제공 동의를 확인해 주세요');
+        if (store.list(owner, 'quality').length >= 30) throw new GameError('품질 제보 접수 한도에 도달했어요', 429);
+        const snapshot = publicGame(game);
+        store.save(owner, 'quality', { id: randomUUID(), gameId: game.id, messageId: input.messageId, reason: input.reason, at: Date.now(), consent: true,
+          version: evaluation ? game.aiVersions?.evaluate ?? null : message.aiVersion ?? null,
+          snapshot: { scenario: snapshot.scenario, profile: snapshot.profile, minute: snapshot.minute,
+            messages: snapshot.messages.filter(m => m.role === 'user' || m.readAt !== null), result: evaluation ? snapshot.result : null } });
+        json({ saved: true }, 201); return;
+      }
       if (path === '/api/feedback') {
         if (typeof input.gameId !== 'string') throw new GameError('대화 ID를 확인해 주세요');
         const game = store.get(owner, input.gameId);
@@ -102,11 +116,30 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
         json({ saved: true }, 201); return;
       }
       const game = ownedGame(owner, match[1]);
-      const gameAI = game.mode === 'demo' && ai.mode === 'live' ? demoAI : protectedAI;
-      if (game.mode === 'live' && ['send', 'hint', 'topic', 'finish'].includes(match[2])) {
-        if (ai.mode !== 'live') throw new GameError('AI 연결이 꺼져 있어요 연결이 복구된 뒤 이 연습을 이어갈 수 있어요', 503);
-        store.consume(owner, dailyLimit);
-        await safety(match[2] === 'send' ? JSON.stringify(input.messages ?? '') : game.messages.map(m => m.text).join('\n'));
+      const fingerprint = createHash('sha256').update(JSON.stringify({ action: match[2], input })).digest('hex');
+      if (input.requestId !== undefined) {
+        if (typeof input.requestId !== 'string' || !/^[a-f\d-]{36}$/.test(input.requestId)) throw new GameError('요청 ID를 확인해 주세요');
+        const completed = (game.requests ?? []).find(item => item.id === input.requestId);
+        if (completed) {
+          if (completed.fingerprint !== fingerprint) throw new GameError('같은 요청 ID의 내용이 달라요', 409);
+          json(publicGame(game)); return;
+        }
+      }
+      if (input.expectedRevision !== undefined && input.expectedRevision !== (game.revision ?? 0)) throw new GameError('대화 진행이 변경됐어요 최신 대화를 확인해 주세요', 409);
+      const revision = game.revision ?? 0, requests = game.requests ?? [];
+      const baseAI = game.mode === 'demo' && ai.mode === 'live' ? demoAI : protectedAI;
+      const gameAI = { ...baseAI };
+      for (const method of ['reply', 'hint', 'topic', 'evaluate', 'reviewDrill']) {
+        gameAI[method] = async (...args) => {
+          if (game.mode === 'live') {
+            if (ai.mode !== 'live') throw new GameError('AI 연결이 꺼져 있어요 연결이 복구된 뒤 이 연습을 이어갈 수 있어요', 503);
+            store.consume(owner, dailyLimit);
+            await safety(JSON.stringify(method === 'reviewDrill' ? { situation: args[0].drill, answer: args[1] } : args[0].messages.slice(-10).map(m => ({ role: m.role, text: m.text }))));
+          }
+          const result = await baseAI[method](...args);
+          args[0].aiVersions = { ...args[0].aiVersions, [method]: baseAI.metadata ?? null };
+          return result;
+        };
       }
         switch (match[2]) {
           case 'shuffle':
@@ -120,9 +153,13 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
           case 'wait': waitForReply(game, input.delayMinutes); break;
           case 'hint': await getHint(game, gameAI); break;
           case 'topic': await getTopicHelp(game, gameAI); break;
-          case 'finish': await finishGame(game, gameAI); break;
+          case 'finish': await finishGame(game, gameAI, { early: input.early === true }); break;
           case 'retry': retryTurn(game, input.turn); break;
+          case 'drill': startDrill(game); break;
+          case 'drill-answer': await submitDrill(game, input.answer, gameAI); break;
         }
+        game.revision = revision + 1;
+        game.requests = input.requestId ? [...requests, { id: input.requestId, fingerprint }].slice(-40) : requests;
         store.save(owner, 'game', game);
         json(publicGame(game));
     } catch (error) {

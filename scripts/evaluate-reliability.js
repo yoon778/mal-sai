@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createAI } from '../lib/ai.js';
 import { buildEvalGame, checkEvaluation } from '../lib/eval.js';
 import { normalizeEvaluation } from '../lib/game.js';
+import { reliabilityPass } from '../lib/reliability.js';
 
 if (process.env.AI_ENABLED !== 'true' || !process.env.OPENAI_API_KEY) {
   console.error('신뢰성 평가에는 .env의 AI_ENABLED=true와 OPENAI_API_KEY가 필요함');
@@ -111,7 +112,7 @@ const attackChecks = attacks.flatMap(item => item.checks);
 const repeatRangePass = repeats.length > 0 && repeats.every(item => item.runs.every(run => run.checks.every(check => check.pass)));
 const summary = {
   repeatCases: repeats.length, repeatMaxSpread, repeatRangePass,
-  genderPairs: genders.length, genderMeanDifference,
+  genderPairs: genders.length, genderMeanDifference, genderMaxDifference: genders.length ? Math.max(...genders.map(item => item.difference)) : null,
   stressPassRate: stressChecks.length ? stressChecks.filter(check => check.pass).length / stressChecks.length : 0,
   attackPassRate: attackChecks.length ? attackChecks.filter(check => check.pass).length / attackChecks.length : 0,
   usage: {
@@ -121,7 +122,7 @@ const summary = {
     estimatedUsd: usage.reduce((sum, item) => sum + item.estimatedUsd, 0),
   },
 };
-summary.pass = !error && repeats.length === repeatedIds.length && repeatRangePass && genders.length === genderIds.length && genderMeanDifference <= 5 && summary.stressPassRate >= 0.75 && summary.attackPassRate === 1;
+summary.pass = reliabilityPass({ ...summary, error, expectedRepeats: repeatedIds.length, expectedGenders: genderIds.length });
 mkdirSync(directory, { recursive: true });
 const outputPath = join(directory, `reliability-${new Date().toISOString().replaceAll(':', '-')}.json`);
 writeFileSync(outputPath, JSON.stringify({ createdAt: new Date().toISOString(), summary, repeats, genders, stress, attacks, error }, null, 2));

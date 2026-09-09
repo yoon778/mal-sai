@@ -14,10 +14,10 @@ if (command === 'pause' || command === 'resume') {
 } else if (command === 'reports') {
   const store = new Store({ directory, key: process.env.STORAGE_KEY });
   try {
-    const rows = store.db.prepare("SELECT data FROM records WHERE kind='report' ORDER BY updated DESC LIMIT 100").all();
+    const rows = store.db.prepare("SELECT data FROM records WHERE kind IN ('report', 'quality') ORDER BY updated DESC LIMIT 100").all();
     for (const row of rows) {
       const report = store.decode(row.data);
-      console.log(JSON.stringify({ id: report.id, reason: report.reason, at: report.at, ...(process.argv.includes('--details') ? { text: report.text } : {}) }));
+      console.log(JSON.stringify({ id: report.id, reason: report.reason, at: report.at, ...(process.argv.includes('--details') ? { text: report.text, version: report.version, snapshot: report.snapshot } : {}) }));
     }
     console.log(`신고 ${rows.length}건`);
   } finally { store.close(); }

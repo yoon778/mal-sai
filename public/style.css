@@ -90,3 +90,6 @@ body{padding-top:var(--safe-top);padding-bottom:var(--safe-bottom);padding-left:
 .account-dialog::backdrop{background:#251d1970}
 .account-dialog p{line-height:1.7}.account-dialog form{margin-top:16px}.account-dialog label{display:grid;gap:8px;margin-bottom:16px}.account-dialog select{max-width:100%;padding:10px}.history-list{display:grid;gap:8px}.history-list button{text-align:left;white-space:normal}.history-list small{display:block;margin-top:6px}
 [data-platform="toss"] .header-caption{display:none}
+.transfer-practice{max-width:850px;margin:32px auto;padding:24px;border:1px solid var(--line);border-radius:20px;background:var(--paper);display:grid;gap:16px}
+.transfer-practice blockquote{margin:0;padding:16px;background:var(--chat);border-radius:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.transfer-practice form,.drill-feedback{display:grid;gap:14px}.transfer-practice textarea{width:100%;min-height:90px;padding:12px;resize:vertical}.quality-consent{display:flex!important;align-items:flex-start;font-size:13px;line-height:1.7}.quality-consent input{margin-top:5px;flex-shrink:0}
