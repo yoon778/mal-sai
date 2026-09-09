@@ -13,6 +13,7 @@ const actionIcon = name => {
     reset: '<path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/>',
     history: '<path d="M12 5v16M3 3l9 2 9-2v16l-9 2-9-2Z"/>',
     send: '<path d="M12 19V5m-6 6 6-6 6 6"/>',
+    settings: '<path d="M4 7h4m4 0h8M4 17h8m4 0h4"/><circle cx="10" cy="7" r="2"/><circle cx="14" cy="17" r="2"/>',
   };
   return `<svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]}</svg>`;
 };
@@ -63,8 +64,7 @@ function renderPreview() {
     <section class="intro"><p class="eyebrow">오늘의 대화 퀘스트</p><h1>다음 말이 궁금한<br>사이가 되어볼까?</h1>
       <p class="intro-copy">상황 하나, 최대 다섯 번의 답장<br>부담 없이 연습하고 나만의 대화 감각을 찾아요</p>
       <section class="quest-ticket" aria-label="이번 미션"><span>이번 미션</span><strong>${escape(game.scenario.goal)}</strong><small>최대 5번의 답장 · 나다운 표현 찾기</small></section>
-      <div class="speech-motif" aria-hidden="true"><span>안녕</span><span>ㅋㅋ</span><i>✳</i></div>
-      <details class="settings"><summary>나에게 맞게 설정<span>선택 사항</span></summary><div class="settings-grid">
+      <details class="settings"><summary><span class="settings-icon">${actionIcon('settings')}</span><span class="settings-copy"><strong>나에게 맞게 설정</strong><small>상대 · 말투 · 상황을 직접 골라요</small></span><span class="settings-toggle" aria-hidden="true"><span class="settings-open-label">설정 열기</span><span class="settings-close-label">접기</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 9 6 6 6-6"/></svg></span></summary><div class="settings-grid">
         ${select('gender', '대화 상대', [['random', '랜덤'], ['female', '여성'], ['male', '남성']])}
         ${select('speech', '말투', [['random', '랜덤'], ['honorific', '존댓말'], ['casual', '반말']])}
         ${select('interest', '상대의 초기 관심', [['random', '랜덤'], ['open', '알아가는 중'], ['low', '관심이 낮은 상황']])}
@@ -72,7 +72,8 @@ function renderPreview() {
         ${select('humor', '농담 선호', [['random', '랜덤'], ['plain', '담백하게'], ['light', '가볍게 장난치기']])}
         ${select('channel', '연락처만 받은 상황의 채널', [['random', '랜덤'], ['kakao', '전화번호 · 카톡'], ['instagram', '인스타 DM']])}
         ${select('scenarioId', '연습할 상황', [['random', '랜덤 상황'], ...config.scenarios.map(s => [s.id, s.title])])}
-      </div>${button('shuffle', '설정 적용해서 다시 뽑기', 'secondary wide')}</details>
+      </div>${button('shuffle', '설정 적용해서 다시 뽑기', 'primary settings-apply')}</details>
+      <div class="speech-motif" aria-hidden="true"><span>안녕</span><span>ㅋㅋ</span><i>✳</i></div>
       <p class="quiet adult-note">20세 이상 성인을 위한 가상의 대화 연습이에요</p>
     </section>
     <section class="scenario-preview" aria-label="대화 시작 준비"><div class="scenario-heading"><span class="eyebrow">오늘의 상황</span>${button('shuffle', '↻ 다른 상황 뽑기', 'secondary quick-reset')}</div>
