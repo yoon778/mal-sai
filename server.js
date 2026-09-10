@@ -43,16 +43,27 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     const json = (data, status = 200) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(data)); };
     try {
-      access.check(req, res);
+      if (req.method === 'GET' && req.url === '/healthz') {
+        store.db.prepare('SELECT 1').get();
+        json({ status: 'ok' }); return;
+      }
       const host = req.headers.host ?? '';
       const path = new URL(req.url, `http://${host}`).pathname;
+      access.check(req, res, path);
       if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
       if (req.method === 'GET' && assets.has(path)) {
         const [file, type] = assets.get(path);
         const body = await readFile(join(root, 'public', file));
         res.writeHead(200, { 'Content-Type': `${type}; charset=utf-8` }); res.end(body); return;
       }
-      if (req.method === 'GET' && path === '/api/config') { json({ mode: ai.mode, scenarios: scenarios.map(({ id, title }) => ({ id, title })), aiLimits: { daily: dailyLimit, minute: minuteLimit } }); return; }
+      if (req.method === 'GET' && path === '/api/config') { json({ mode: ai.mode, platform: access.mode ?? 'local', scenarios: scenarios.map(({ id, title }) => ({ id, title })), aiLimits: { daily: dailyLimit, minute: minuteLimit } }); return; }
+      if (req.method === 'POST' && path === '/api/session') {
+        if (!(req.headers['content-type'] ?? '').startsWith('application/json')) throw new GameError('JSON 요청이 필요해요', 415);
+        if (req.headers['transfer-encoding'] || req.headers['content-length'] && req.headers['content-length'] !== '0') throw new GameError('빈 연결 요청이 필요해요');
+        if (access.mode === 'toss') throw new GameError('허용되지 않은 요청이에요', 403);
+        req.resume();
+        json(access.session ? access.session(req, res) : { platform: 'local' }); return;
+      }
       if (!path.startsWith('/api/')) throw new GameError('페이지를 찾을 수 없어요', 404);
       const owner = await access.owner(req);
       if (req.method === 'GET' && path === '/api/history') {
@@ -138,7 +149,7 @@ export function createServer({ ai = createAI({ directory: join(root, '.data') })
           if (game.mode === 'live') {
             if (ai.mode !== 'live') throw new GameError('AI 연결이 꺼져 있어요 연결이 복구된 뒤 이 연습을 이어갈 수 있어요', 503);
             if (activeAI >= maxConcurrentAI) throw Object.assign(new GameError('지금 AI 이용자가 많아요 잠시 후 다시 시도해 주세요', 429), { retryAfter: 5 });
-            store.consumeAI(owner, dailyLimit, minuteLimit);
+            store.consumeAI(owner, dailyLimit, minuteLimit, Date.now(), access.quotaOwner?.(req));
             activeAI++;
           }
           try {
@@ -188,6 +199,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   const port = Number(process.env.PORT ?? 3000);
   const settings = deployment();
   const directory = process.env.DATA_DIRECTORY ?? join(root, '.data');
-  createServer({ ai: createAI({ directory }), store: new Store({ directory, key: process.env.STORAGE_KEY }), access: createAccess(settings), safety: createSafety({ stopFile: join(directory, 'ai-paused') }), dailyLimit: Number(process.env.AI_DAILY_REQUEST_LIMIT ?? 30), minuteLimit: Number(process.env.AI_MINUTE_REQUEST_LIMIT ?? 6), maxConcurrentAI: Number(process.env.AI_MAX_CONCURRENT_REQUESTS ?? 3) })
-    .listen(port, settings.mode === 'toss' ? '0.0.0.0' : '127.0.0.1', () => console.log(`말사이 · ${settings.mode} · port ${port}`));
+  const server = createServer({ ai: createAI({ directory }), store: new Store({ directory, key: process.env.STORAGE_KEY }), access: createAccess(settings), safety: createSafety({ stopFile: join(directory, 'ai-paused') }), dailyLimit: Number(process.env.AI_DAILY_REQUEST_LIMIT ?? 30), minuteLimit: Number(process.env.AI_MINUTE_REQUEST_LIMIT ?? 6), maxConcurrentAI: Number(process.env.AI_MAX_CONCURRENT_REQUESTS ?? 3) });
+  server.listen(port, settings.mode === 'local' ? '127.0.0.1' : '0.0.0.0', () => console.log(`말사이 · ${settings.mode} · port ${port}`));
+  for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => {
+    server.close(() => process.exit(0));
+    setTimeout(() => { server.closeAllConnections(); process.exit(1); }, 85_000).unref();
+  });
 }

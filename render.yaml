@@ -1,0 +1,41 @@
+# Paid resources are created only when this Blueprint is applied in Render.
+# 2026-09-10: $7/month compute + $0.25/month for 1GB disk, other usage extra.
+services:
+  - type: web
+    name: mal-sai
+    runtime: node
+    plan: 0.5c-512mb
+    region: singapore
+    numInstances: 1
+    autoDeployTrigger: off
+    buildCommand: npm run check && npm test && npm run eval:validate
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    maxShutdownDelaySeconds: 90
+    disk:
+      name: mal-sai-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 24.18.0
+      - key: NODE_ENV
+        value: production
+      - key: APP_PLATFORM
+        value: web
+      - key: DATA_DIRECTORY
+        value: /var/data
+      - key: STORAGE_KEY
+        sync: false
+      - key: AI_ENABLED
+        value: "false"
+      - key: AI_BUDGET_USD
+        value: "3"
+      - key: AI_DAILY_REQUEST_LIMIT
+        value: "30"
+      - key: AI_MINUTE_REQUEST_LIMIT
+        value: "6"
+      - key: AI_MAX_CONCURRENT_REQUESTS
+        value: "3"
+      - key: PRIVACY_REVIEWED
+        value: "false"

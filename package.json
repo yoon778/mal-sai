@@ -13,7 +13,7 @@
     "ai:resume": "node --env-file-if-exists=.env scripts/operations.js resume",
     "reports:list": "node --env-file-if-exists=.env scripts/operations.js reports",
     "start": "node --env-file-if-exists=.env server.js",
-    "check": "node --check server.js && node --check lib/game.js && node --check lib/ai.js && node --check lib/eval.js && node --check lib/realism.js && node --check public/app.js && node --check scripts/evaluate.js && node --check scripts/smoke-live.js && node --check scripts/evaluate-realism.js && node --check scripts/evaluate-reliability.js && node --check scripts/summarize-feedback.js && node --check lib/models.js && node --check lib/chat-prompt.js && node --check public/designs.js && node --check scripts/compare-chat.js && node --check lib/practice-scenarios.js && node --check lib/coaching-principles.js && node --check lib/spelling.js && node --check scripts/check-coaching.js",
+    "check": "node --check server.js && node --check lib/game.js && node --check lib/ai.js && node --check lib/eval.js && node --check lib/realism.js && node --check public/app.js && node --check scripts/evaluate.js && node --check scripts/smoke-live.js && node --check scripts/evaluate-realism.js && node --check scripts/evaluate-reliability.js && node --check scripts/summarize-feedback.js && node --check lib/models.js && node --check lib/chat-prompt.js && node --check public/designs.js && node --check scripts/compare-chat.js && node --check lib/practice-scenarios.js && node --check lib/coaching-principles.js && node --check lib/spelling.js && node --check scripts/check-coaching.js && node --check lib/web-access.js && node --check lib/web-session.js && node --check public/platform.js && node --check lib/deployment-config.js && node --check scripts/web-preflight.js && node --check scripts/setup-web.js",
     "test": "node --test",
     "eval:validate": "node scripts/evaluate.js",
     "eval:ai": "node --env-file-if-exists=.env scripts/evaluate.js --live",
@@ -22,7 +22,9 @@
     "reliability:ai": "node --env-file-if-exists=.env scripts/evaluate-reliability.js",
     "feedback:summary": "node --env-file-if-exists=.env scripts/summarize-feedback.js",
     "compare:chat": "node --env-file-if-exists=.env scripts/compare-chat.js",
-    "check:coaching": "node --env-file-if-exists=.env scripts/check-coaching.js --live"
+    "check:coaching": "node --env-file-if-exists=.env scripts/check-coaching.js --live",
+    "setup:web": "node scripts/setup-web.js",
+    "preflight:web": "node --env-file-if-exists=.env.web scripts/web-preflight.js"
   },
   "devDependencies": {
     "@apps-in-toss/web-framework": "3.3.0",

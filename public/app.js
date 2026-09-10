@@ -56,7 +56,7 @@ function bubble(message, { preview = false, review = false } = {}) {
 }
 
 function modeNote() {
-  return game.mode === 'demo' ? '<p class="mode-note">체험 모드 · 준비된 반응으로 진행하며 AI 점수는 제공하지 않아요</p>' : `<p class="mode-note">AI 연습 상대 · 입력한 대화는 응답·평가를 위해 OpenAI로 전송돼요${game.stage === 'preview' && config.aiLimits ? `<br>답장·힌트·주제 도움·복기·복습 합쳐 하루 ${escape(config.aiLimits.daily)}회 · 한국 시간 오전 9시 초기화<br>상황 뽑기와 저장된 기록 조회는 횟수를 차감하지 않아요` : ''}</p>`;
+  return game.mode === 'demo' ? '<p class="mode-note">체험 모드 · 준비된 반응으로 진행하며 AI 점수는 제공하지 않아요</p>' : `<p class="mode-note">AI 연습 상대 · 입력한 대화는 응답·평가를 위해 OpenAI로 전송돼요${game.stage === 'preview' && config.aiLimits ? `<br>답장·힌트·주제 도움·복기·복습 합쳐 하루 ${escape(config.aiLimits.daily)}회 · 한국 시간 오전 9시 초기화<br>상황 뽑기와 저장된 기록 조회는 횟수를 차감하지 않아요${config.platform === 'web' ? '<br>같은 네트워크에서는 이용 한도를 함께 사용해요' : ''}` : ''}</p>`;
 }
 
 function renderPreview() {
@@ -443,7 +443,7 @@ function showQualityReport() {
   };
 }
 function showPrivacy() {
-  dialog('대화와 기록 안내', '<p>입력한 대화와 연습 맥락은 OpenAI로 전송되어 답장·평가·복습·안전 확인에 사용돼요 실제 사람의 개인정보는 입력하지 마세요</p><p>서버에는 대화·진행 상황·평가·의견·신고와 별도로 동의한 품질 제보의 대화 맥락을 암호화해 30일간 저장해요 내 연습 기록에서 전체 삭제할 수 있어요 이용 횟수는 최대 3일간 유지돼요</p><p>현재 출시 준비 단계예요 운영자 정보와 정식 개인정보 처리방침 확정 후 공개돼요</p>');
+  dialog('대화와 기록 안내', `<p>AI 모드에서는 입력한 대화와 연습 맥락이 OpenAI로 전송되어 답장·평가·복습·안전 확인에 사용돼요 실제 사람의 개인정보는 입력하지 마세요</p><p>서버에는 대화·진행 상황·평가·의견·신고와 별도로 동의한 품질 제보의 대화 맥락을 암호화해 30일간 저장해요 내 연습 기록에서 전체 삭제할 수 있어요 이용 횟수는 최대 3일간 유지돼요</p>${config.platform === 'web' ? '<p>가입 없이 이 브라우저의 보안 쿠키로 기록을 구분해요 쿠키는 접속 시 30일로 갱신돼요 쿠키 삭제·만료 또는 다른 브라우저에서는 이전 기록을 찾을 수 없어요 이용 한도 확인을 위해 네트워크 주소를 해시로 바꿔 사용해요</p>' : ''}<p>현재 출시 준비 단계예요 운영자 정보와 정식 개인정보 처리방침 확정 후 공개돼요</p>`);
 }
 function showReport() {
   const messages = game.messages.filter(m => m.role === 'partner' && !m.background && m.readAt !== null);
